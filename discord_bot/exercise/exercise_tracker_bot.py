@@ -7,7 +7,7 @@ import sys
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'bot_metadata')))
-from exercise_tracker_bot_MDATA import TOKEN
+from exercise_tracker_bot_MDATA import *
 os.system('pwd')
 
 
@@ -175,7 +175,8 @@ async def end_workout(interaction: discord.Interaction):
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    guild = discord.Object(id=int(GUILD_ID))
+    await bot.tree.sync(guild=guild)
     print(f"Logged in as {bot.user}")
 
 bot.run(TOKEN)
