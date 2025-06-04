@@ -195,3 +195,6 @@ cython_debug/
 
 # Data
 data/*
+
+# Bot metadata
+discord_bot/bot_metadata/*
