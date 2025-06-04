@@ -156,12 +156,12 @@ class NewExerciseModal(discord.ui.Modal, title="New Exercise"):
         if user_response_valid:
             EXERCISE_TRACKER.add_new_exercise(new_exercise)
         await interaction.response.send_message(f'''Added new exercise, "{new_exercise['exercise_name']}"''')
-@app_commands.command(name="newexercise", description="Define a new exercise and add the first entry")
+@bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
 async def new_exercise(interaction: discord.Interaction):
     await interaction.response.send_modal(NewExerciseModal())
 
 ### (end_workout)
-@app_commands.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE")
+@bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE")
 async def end_workout(interaction: discord.Interaction):
     msg = EXERCISE_TRACKER.end_workout()
     await interaction.response.send_message(msg)
