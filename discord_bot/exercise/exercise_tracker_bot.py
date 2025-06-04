@@ -7,15 +7,11 @@ import sys
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'bot_metadata')))
-from exercise_tracker_bot import TOKEN
-
+from exercise_tracker_bot_MDATA import TOKEN
+os.system('pwd')
 class ExerciseTracker(EXERCISE_HISTORY_CLS):
-    def __init__(self, PATH, TOKEN):
+    def __init__(self, PATH):
         super().__init__(PATH)
-        self.token = TOKEN
-    def run_bot(self):
-        self.bot.run(self.token)
-
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
@@ -31,9 +27,9 @@ async def exercise(interaction: discord.Interaction, name: str):
     await interaction.response.send_message(f"You picked: **{name}**")
 
 @bot.event
-async def on_ready(self):
-    await self.bot.tree.sync()
-    print(f"Logged in as {self.bot.user}")
+async def on_ready():
+    await bot.tree.sync()
+    print(f"Logged in as {bot.user}")
 
 bot.run(TOKEN)
 

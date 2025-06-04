@@ -2,8 +2,8 @@ import pandas as pd
 import re
 import json
 from sys import platform, argv
-RELATIVE_PATH = 'Fitness/data/exercise_logs/exercise_history.csv'
-EXERCISE_HISTORY_PATH = str('C:/Files/' if platform.startswith('win') else '/mnt/c/Files/') + RELATIVE_PATH
+RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
+EXERCISE_HISTORY_PATH = str('C:/Files/Fitness' if platform.startswith('win') else '/app/') + RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','set','position']
 
 def print_list(inp_list,title=''):
