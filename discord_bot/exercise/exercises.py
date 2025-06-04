@@ -1,7 +1,8 @@
 import pandas as pd
 import re
+import json
 from sys import platform, argv
-RELATIVE_PATH = 'Fitness/exercise_history.csv'
+RELATIVE_PATH = 'Fitness/data/exercise_logs/exercise_history.csv'
 EXERCISE_HISTORY_PATH = str('C:/Files/' if platform.startswith('win') else '/mnt/c/Files/') + RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','set','position']
 
@@ -170,12 +171,13 @@ class EXERCISE_HISTORY_CLS():
                     position_index += 1
             else:
                 workout[position_index] = exercise_data
-                exercise_name = exercise_data['exercise_data']
+                exercise_name = exercise_data['exercise_name']
                 exercises[exercise_name] = set([position_index])
                 position_index += 1
             get_next_exercise = self.get_user_input(yn_condition, prompt=f"Get new exercise (Y/N)?")
             if get_next_exercise == "N":
                 break
+        print(f'\n\nWORKOUT_{new_workout} = {json.dumps(workout, indent=4)}\n\nWorkout logged: {new_workout}')
         if workout == {}:
             return None
         else:
