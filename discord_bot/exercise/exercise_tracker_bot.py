@@ -111,30 +111,7 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
 
-### (start_workout)
-@bot.tree.command(name="start_workout", description="Start logging a new workout")
-async def start_workout(interaction: discord.Interaction):
-    msg = EXERCISE_TRACKER.start_workout()
-    await interaction.response.send_message(msg, ephemeral=True)
 
-### (get_exercise) Add a new entry for an existing exercise
-async def exercise_autocomplete(interaction: discord.Interaction, current: str):
-    matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.5)
-    return [app_commands.Choice(name=match, value=match) for match in matches]
-@bot.tree.command(name="exercise", description="Pick an exercise from a list")
-@app_commands.describe(name="Name of the exercise")
-@app_commands.autocomplete(name=exercise_autocomplete)
-async def exercise(interaction: discord.Interaction, name: str):
-    msg = EXERCISE_TRACKER.get_exercise(name)
-    await interaction.response.send_message(msg, ephemeral=True)
-
-### (get_sets)
-@bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise")
-async def get_sets(interaction: discord.Interaction, sets: str):
-    msg = EXERCISE_TRACKER.get_sets(sets)
-    await interaction.response.send_message(msg, ephemeral=True)
-
-### (add_new_exercise) Let the user add a new exercise to the list
 class NewExerciseModal(discord.ui.Modal):
     def __init__(self):
         super().__init__(title="New Exercise")
@@ -164,6 +141,32 @@ class NewExerciseModal(discord.ui.Modal):
             await interaction.response.send_message(f'''Added new exercise, "{new_exercise['exercise_name']}"''', ephemeral=True)
         else:
             await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again.",ephemeral=True)
+
+
+### (start_workout)
+@bot.tree.command(name="start_workout", description="Start logging a new workout")
+async def start_workout(interaction: discord.Interaction):
+    msg = EXERCISE_TRACKER.start_workout()
+    await interaction.response.send_message(msg, ephemeral=True)
+
+### (get_exercise) Add a new entry for an existing exercise
+async def exercise_autocomplete(interaction: discord.Interaction, current: str):
+    matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.5)
+    return [app_commands.Choice(name=match, value=match) for match in matches]
+@bot.tree.command(name="exercise", description="Pick an exercise from a list")
+@app_commands.describe(name="Name of the exercise")
+@app_commands.autocomplete(name=exercise_autocomplete)
+async def exercise(interaction: discord.Interaction, name: str):
+    msg = EXERCISE_TRACKER.get_exercise(name)
+    await interaction.response.send_message(msg, ephemeral=True)
+
+### (get_sets)
+@bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise")
+async def get_sets(interaction: discord.Interaction, sets: str):
+    msg = EXERCISE_TRACKER.get_sets(sets)
+    await interaction.response.send_message(msg, ephemeral=True)
+
+### (add_new_exercise) Let the user add a new exercise to the list
 @bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
 async def new_exercise(interaction: discord.Interaction):
     await interaction.response.send_modal(NewExerciseModal())
