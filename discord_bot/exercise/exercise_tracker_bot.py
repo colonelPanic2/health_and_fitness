@@ -187,8 +187,7 @@ async def end_workout(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     guild = discord.Object(id=int(GUILD_ID))
-    await bot.tree.sync(guild=guild)
     print(f"Logged in as {bot.user}")
+    await bot.tree.sync(guild=guild)
 
 bot.run(TOKEN)
-
