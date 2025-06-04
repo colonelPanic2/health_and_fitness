@@ -115,7 +115,7 @@ EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
 @bot.tree.command(name="start_workout", description="Start logging a new workout")
 async def start_workout(interaction: discord.Interaction):
     msg = EXERCISE_TRACKER.start_workout()
-    await interaction.response.send_message(msg)
+    await interaction.response.send_message(msg, ephemeral=True)
 
 ### (get_exercise) Add a new entry for an existing exercise
 async def exercise_autocomplete(interaction: discord.Interaction, current: str):
@@ -126,20 +126,26 @@ async def exercise_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.get_exercise(name)
-    await interaction.response.send_message(msg)
+    await interaction.response.send_message(msg, ephemeral=True)
 
 ### (get_sets)
 @bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise")
 async def get_sets(interaction: discord.Interaction, sets: str):
     msg = EXERCISE_TRACKER.get_sets(sets)
-    await interaction.response.send_message(msg)
+    await interaction.response.send_message(msg, ephemeral=True)
 
 ### (add_new_exercise) Let the user add a new exercise to the list
-class NewExerciseModal(discord.ui.Modal, title="New Exercise"):
-    name = discord.ui.TextInput(label="Exercise Name",placeholder="Enter the name of the exercise")
-    area = discord.ui.TextInput(label="Target Muscle Area",placeholder='BACK, CHEST, ARMS, LEGS, ABS, N/A')
-    units = discord.ui.TextInput(label="Units",placeholder="Leave empty for <N_REPS>x<N_POUNDS>")
-    sets = discord.ui.TextInput(label="Sets",placeholder="Comma-separated sets for the new exercise being recorded")
+class NewExerciseModal(discord.ui.Modal):
+    def __init__(self):
+        super().__init__(title="New Exercise")
+        self.name = discord.ui.TextInput(label="Exercise Name",placeholder="Enter the name of the exercise")
+        self.area = discord.ui.TextInput(label="Target Muscle Area",placeholder='BACK, CHEST, ARMS, LEGS, ABS, N/A')
+        self.units = discord.ui.TextInput(label="Units",placeholder="Leave empty for <N_REPS>x<N_POUNDS>",required=False)
+        self.sets = discord.ui.TextInput(label="Sets",placeholder="Comma-separated sets for the new exercise being recorded")
+        self.add_item(self.name)
+        self.add_item(self.area)
+        self.add_item(self.units)
+        self.add_item(self.sets)
     async def on_submit(self, interaction: discord.Interaction):
         new_exercise = {
             'exercise_name': re.sub(r'__+','_',str(self.name.value).strip().upper().replace(' ','_')),
@@ -155,7 +161,9 @@ class NewExerciseModal(discord.ui.Modal, title="New Exercise"):
             )
         if user_response_valid:
             EXERCISE_TRACKER.add_new_exercise(new_exercise)
-        await interaction.response.send_message(f'''Added new exercise, "{new_exercise['exercise_name']}"''')
+            await interaction.response.send_message(f'''Added new exercise, "{new_exercise['exercise_name']}"''', ephemeral=True)
+        else:
+            await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again.",ephemeral=True)
 @bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
 async def new_exercise(interaction: discord.Interaction):
     await interaction.response.send_modal(NewExerciseModal())
@@ -164,7 +172,7 @@ async def new_exercise(interaction: discord.Interaction):
 @bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE")
 async def end_workout(interaction: discord.Interaction):
     msg = EXERCISE_TRACKER.end_workout()
-    await interaction.response.send_message(msg)
+    await interaction.response.send_message(msg, ephemeral=True)
 
 
 
