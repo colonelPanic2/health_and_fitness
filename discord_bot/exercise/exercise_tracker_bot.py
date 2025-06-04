@@ -121,7 +121,7 @@ async def start_workout(interaction: discord.Interaction):
 async def exercise_autocomplete(interaction: discord.Interaction, current: str):
     matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.5)
     return [app_commands.Choice(name=match, value=match) for match in matches]
-@bot.tree.command(name="exercise", description="Pick an exercise from a list or add a new exercise")
+@bot.tree.command(name="exercise", description="Pick an exercise from a list")
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
