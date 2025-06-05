@@ -9,7 +9,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'bot_metadata')))
 from exercise_tracker_bot_MDATA import *
 os.system('pwd')
-
+guild = discord.Object(id=int(GUILD_ID))
 
 
 class ExerciseTracker(EXERCISE_HISTORY_CLS):
@@ -112,75 +112,76 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
 
 
-class NewExerciseModal(discord.ui.Modal):
-    def __init__(self):
-        super().__init__(title="New Exercise")
-        self.name = discord.ui.TextInput(label="Exercise Name",placeholder="Enter the name of the exercise")
-        self.area = discord.ui.TextInput(label="Target Muscle Area",placeholder='BACK, CHEST, ARMS, LEGS, ABS, N/A')
-        self.units = discord.ui.TextInput(label="Units",placeholder="Leave empty for <N_REPS>x<N_POUNDS>",required=False)
-        self.sets = discord.ui.TextInput(label="Sets",placeholder="Comma-separated sets for the new exercise being recorded")
-        self.add_item(self.name)
-        self.add_item(self.area)
-        self.add_item(self.units)
-        self.add_item(self.sets)
-    async def on_submit(self, interaction: discord.Interaction):
-        new_exercise = {
-            'exercise_name': re.sub(r'__+','_',str(self.name.value).strip().upper().replace(' ','_')),
-            'area': str(self.area.value).strip().upper(),
-            'units': str(self.units.value).strip(),
-            'sets': str(self.sets.value).replace(' ','')
-        }
-        check_new_exercise_name = re.findall(r'^[A-Z0-9_\-]+$',new_exercise['exercise_name'])
-        user_response_valid = (
-                EXERCISE_TRACKER.area_exists(new_exercise['area']))\
-                and (len(check_new_exercise_name) != 0 and check_new_exercise_name[0] == new_exercise['exercise_name']\
-                and valid_data_format(new_exercise['units'], new_exercise['sets'])
-            )
-        if user_response_valid:
-            EXERCISE_TRACKER.add_new_exercise(new_exercise)
-            await interaction.response.send_message(f'''Added new exercise, "{new_exercise['exercise_name']}"''', ephemeral=True)
-        else:
-            await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again.",ephemeral=True)
+# class NewExerciseModal(discord.ui.Modal):
+#     def __init__(self):
+#         super().__init__(title="New Exercise")
+#         self.name = discord.ui.TextInput(label="Exercise Name",placeholder="Enter the name of the exercise")
+#         self.area = discord.ui.TextInput(label="Target Muscle Area",placeholder='BACK, CHEST, ARMS, LEGS, ABS, N/A')
+#         self.units = discord.ui.TextInput(label="Units",placeholder="Leave empty for <N_REPS>x<N_POUNDS>",required=False)
+#         self.sets = discord.ui.TextInput(label="Sets",placeholder="Comma-separated sets for the new exercise being recorded")
+#         self.add_item(self.name)
+#         self.add_item(self.area)
+#         self.add_item(self.units)
+#         self.add_item(self.sets)
+#     async def on_submit(self, interaction: discord.Interaction):
+#         new_exercise = {
+#             'exercise_name': re.sub(r'__+','_',str(self.name.value).strip().upper().replace(' ','_')),
+#             'area': str(self.area.value).strip().upper(),
+#             'units': str(self.units.value).strip(),
+#             'sets': str(self.sets.value).replace(' ','')
+#         }
+#         check_new_exercise_name = re.findall(r'^[A-Z0-9_\-]+$',new_exercise['exercise_name'])
+#         user_response_valid = (
+#                 EXERCISE_TRACKER.area_exists(new_exercise['area']))\
+#                 and (len(check_new_exercise_name) != 0 and check_new_exercise_name[0] == new_exercise['exercise_name']\
+#                 and valid_data_format(new_exercise['units'], new_exercise['sets'])
+#             )
+#         if user_response_valid:
+#             EXERCISE_TRACKER.add_new_exercise(new_exercise)
+#             await interaction.response.send_message(f'''Added new exercise, "{new_exercise['exercise_name']}"''', ephemeral=True)
+#         else:
+#             await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again.",ephemeral=True)
 
 
-### (add_new_exercise) Let the user add a new exercise to the list
-@bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
-async def new_exercise(interaction: discord.Interaction):
-    await interaction.response.send_modal(NewExerciseModal())
+# ### (add_new_exercise) Let the user add a new exercise to the list
+# @bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
+# async def new_exercise(interaction: discord.Interaction):
+#     await interaction.response.send_modal(NewExerciseModal())
 
-### (start_workout)
-@bot.tree.command(name="start_workout", description="Start logging a new workout")
-async def start_workout(interaction: discord.Interaction):
-    msg = EXERCISE_TRACKER.start_workout()
-    await interaction.response.send_message(msg, ephemeral=True)
+# ### (start_workout)
+# @bot.tree.command(name="start_workout", description="Start logging a new workout")
+# async def start_workout(interaction: discord.Interaction):
+#     msg = EXERCISE_TRACKER.start_workout()
+#     await interaction.response.send_message(msg, ephemeral=True)
 
-### (get_exercise) Add a new entry for an existing exercise
-async def exercise_autocomplete(interaction: discord.Interaction, current: str):
-    matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.5)
-    return [app_commands.Choice(name=match, value=match) for match in matches]
-@bot.tree.command(name="exercise", description="Pick an exercise from a list")
-@app_commands.describe(name="Name of the exercise")
-@app_commands.autocomplete(name=exercise_autocomplete)
-async def exercise(interaction: discord.Interaction, name: str):
-    await bot.tree.sync(guilld=discord.Object(id=int(GUILD_ID)))
-    msg = EXERCISE_TRACKER.get_exercise(name)
-    await interaction.response.send_message(msg, ephemeral=True)
+# ### (get_exercise) Add a new entry for an existing exercise
+# async def exercise_autocomplete(interaction: discord.Interaction, current: str):
+#     matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.5)
+#     return [app_commands.Choice(name=match, value=match) for match in matches]
+# @bot.tree.command(name="exercise", description="Pick an exercise from a list")
+# @app_commands.describe(name="Name of the exercise")
+# @app_commands.autocomplete(name=exercise_autocomplete)
+# async def exercise(interaction: discord.Interaction, name: str):
+#     await bot.tree.sync(guilld=discord.Object(id=int(GUILD_ID)))
+#     msg = EXERCISE_TRACKER.get_exercise(name)
+#     await interaction.response.send_message(msg, ephemeral=True)
 
-### (get_sets)
-@bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise")
-async def get_sets(interaction: discord.Interaction, sets: str):
-    msg = EXERCISE_TRACKER.get_sets(sets)
-    await interaction.response.send_message(msg, ephemeral=True)
+# ### (get_sets)
+# @bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise")
+# async def get_sets(interaction: discord.Interaction, sets: str):
+#     msg = EXERCISE_TRACKER.get_sets(sets)
+#     await interaction.response.send_message(msg, ephemeral=True)
 
 @bot.tree.command(name="ping",description="ping chillin")
 async def ping(interaction: discord.Interaction):
+    bot.tree.sync(guild=guild)
     await interaction.response.send_message("hi", ephemeral=True)
 
-### (end_workout)
-@bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE")
-async def end_workout(interaction: discord.Interaction):
-    msg = EXERCISE_TRACKER.end_workout()
-    await interaction.response.send_message(msg, ephemeral=True)
+# ### (end_workout)
+# @bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE")
+# async def end_workout(interaction: discord.Interaction):
+#     msg = EXERCISE_TRACKER.end_workout()
+#     await interaction.response.send_message(msg, ephemeral=True)
 
 
 
@@ -191,7 +192,6 @@ async def end_workout(interaction: discord.Interaction):
 
 @bot.event
 async def on_ready():
-    guild = discord.Object(id=int(GUILD_ID))
     print(f"Logged in as {bot.user}")
     await bot.tree.sync(guild=guild)
 
