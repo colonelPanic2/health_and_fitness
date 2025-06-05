@@ -46,7 +46,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         if self.workout_exercise_position is None:
             self.workout_exercise_position = 0
         if self.current_exercise is None:
-            self.exercise_name = exercise_name
+            self.current_exercise = exercise_name
         if self.cannot_perform_action():
             if self.log_workout == False:
                 return f'Not currently logging a workout. Run "/start_workout"'
@@ -97,13 +97,13 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return None
         return self.workout
     def end_workout(self):
+        if self.workout == {}:
+            return f'ABORT: Stopped logging exercise "{self.new_workout}" without saving'
         if self.cannot_perform_action():
             if self.log_workout == False:
                 return f'Not currently logging a workout. Run "/start_workout"'
             else:
                 return f'UNEXPECTED INPUT DETECTED'
-        elif self.workout == {}:
-            return f'ABORT: Stopped logging exercise "{self.new_workout}" without saving'
         self.add_workout()
         self.log_workout = False
         self.workout_exercise_position = None
