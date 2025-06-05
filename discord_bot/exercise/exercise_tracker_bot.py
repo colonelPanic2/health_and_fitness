@@ -43,6 +43,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         return f'Started logging new workout: {self.new_workout}'
     def get_exercise(self, exercise_name):
         if self.cannot_perform_action():
+            if self.workout_exercise_position is None
             if self.log_workout == False:
                 return f'Not currently logging a workout. Run "/start_workout"'
             else:
@@ -98,8 +99,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
                 return f'Not currently logging a workout. Run "/start_workout"'
             else:
                 return f'UNEXPECTED INPUT DETECTED'
-        elif self.workout == "":
-            return f'Log at least one exercise before finishing the workout'
+        elif self.workout == {}:
+            return f'ABORT: Stopped logging exercise "{self.new_workout}" without saving'
         self.add_workout()
         self.log_workout = False
         self.workout_exercise_position = None
