@@ -166,6 +166,10 @@ async def get_sets(interaction: discord.Interaction, sets: str):
     msg = EXERCISE_TRACKER.get_sets(sets)
     await interaction.response.send_message(msg, ephemeral=True)
 
+@bot.tree.command(name="ping",description="ping chillin")
+async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message("hi", ephemeral=True)
+
 ### (add_new_exercise) Let the user add a new exercise to the list
 @bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
 async def new_exercise(interaction: discord.Interaction):
