@@ -164,7 +164,6 @@ async def exercise_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
-    await bot.tree.sync(guilld=guild)
     msg = EXERCISE_TRACKER.get_exercise(name)
     await interaction.response.send_message(msg, ephemeral=True)
 
