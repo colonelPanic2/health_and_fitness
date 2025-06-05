@@ -21,6 +21,61 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.current_exercise = None
         self.new_workout = None
         self.workout = None
+        self.WORKOUT_15 = {
+            0: {
+                "exercise_name": "EZ_BAR_CURL",
+                "stats": {
+                    0: "12x60",
+                    1: "12x50",
+                    2: "12x50",
+                    3: "12x50"
+                }
+            },
+            1: {
+                "exercise_name": "CLOSE_GRIP_EZ_BAR_CURL",
+                "stats": {
+                    0: "12x50",
+                    1: "12x50",
+                    2: "12x60",
+                    3: "12x50"
+                }
+            },
+            2: {
+                "exercise_name": "DUMBBELL_LATERAL_RAISE",
+                "stats": {
+                    0: "12x20",
+                    1: "12x20",
+                    2: "12x20"
+                }
+            },
+            3: {
+                "exercise_name": "REAR_DELT_EXTENSION",
+                "area": "BACK",
+                "units": "",
+                "stats": {
+                    0: "10x55",
+                    1: "10x60",
+                    2: "10x65"
+                }
+            },
+            4: {
+                "exercise_name": "INCLINED_BENCH_PRESS",
+                "stats": {
+                    "0": "12x75",
+                    "1": "12x75",
+                    "2": "12x65",
+                    "3": "12x60"
+                }
+            },
+            5: {
+                "exercise_name": "LAT_PULLDOWN",
+                "stats": {
+                    0: "12x90",
+                    1: "12x90",
+                    2: "12x90"
+                }
+            }
+        }
     def cannot_perform_action(self):
         status = bool(
             self.log_workout == False 
@@ -78,32 +133,46 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
                 msg += f'(SET {i+1}) Invalid entry: "{set}"' + str('\n' if i < len(sets)-1 else '')
             else:
                 sets_dict[i] = set
-        if msg == '':
+        if msg != '':
             return msg
+        else:
+            msg = f'({self.workout_exercise_position+1}) "{self.current_exercise}" - {", ".join(sets_list)}'
         self.workout[self.workout_exercise_position] = {'exercise_name': self.current_exercise, 'stats': sets_dict}
         self.workout_exercise_position += 1
         self.current_exercise = None
+        return msg
     def add_new_exercise(self, exercise):
+        self.current_exercise = exercise['exercise_name']
         if self.cannot_perform_action():
+            self.current_exercise = None
             if self.log_workout == False:
                 return f'Not currently logging a workout. Run "/start_workout"'
             else:
                 return f'UNEXPECTED INPUT DETECTED'
-        self.workout[self.workout_exercise_position] = exercise
+        self.new_exercises[self.current_exercise] = {'units': exercise['units'], 'area': exercise['area']}
+        self.exercises.append(exercise['exercise_name'])
+        exercise_log = {'exercise_name': exercise['exercise_name'], 'stats': {i: set_ for i,set_ in enumerate(exercise['sets'])}}
+        self.workout[self.workout_exercise_position] = exercise_log
         self.workout_exercise_position += 1
         self.current_exercise=None
+        return f'''Added new exercise:\n"({self.workout_exercise_position}) {exercise['exercise_name']}" - {", ".join(exercise["sets"])}'''
     def get_workout(self):
-        if self.cannot_perform_action():
-            return None
+        # Defined for the definition of "add_workout" in exercises.py
         return self.workout
     def end_workout(self):
-        if self.workout == {}:
+        self.log_workout = True
+        self.workout = self.WORKOUT_15
+        self.new_workout = 15
+        self.new_exercises = {'REAR_DELT_EXTENSION': {'units': '', 'area': 'BACK'}}
+        if self.workout is not None and self.workout == {}:
+            self.log_workout = False
+            self.workout_exercise_position = None
+            self.current_exercise = None
+            self.new_workout = None
+            self.workout = None
             return f'ABORT: Stopped logging exercise "{self.new_workout}" without saving'
-        if self.cannot_perform_action():
-            if self.log_workout == False:
-                return f'Not currently logging a workout. Run "/start_workout"'
-            else:
-                return f'UNEXPECTED INPUT DETECTED'
+        if self.log_workout == False or self.workout is None or self.new_workout is None:
+            return f'Not currently logging a workout. Run "/start_workout"'
         self.add_workout()
         self.log_workout = False
         self.workout_exercise_position = None
@@ -111,7 +180,32 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.new_workout = None
         self.workout = None
         return f'Finished logging new workout: {self.new_workout}\nGood job!'
-
+    def abort_workout(self):
+        if self.new_workout is None:
+            return f'Not currently logging a workout. Run "/start_workout"'
+        msg = f'Aborted logging workout {self.new_workout}'
+        self.log_workout = False
+        self.workout_exercise_position = None
+        self.current_exercise = None
+        self.new_workout = None
+        self.workout = None
+        return msg
+    def abort_exercise(self):
+        if self.new_workout is None or self.log_workout == False:
+            return f'Not currently logging a workout. Run "/start_workout"'
+        elif self.current_exercise is None:
+            return f'Not currently logging an exercise for workout "{self.new_workout}". Run "/exercise" or "/newexercise"'
+        msg = f'ABORT: Stopped logging "{self.current_exercise}" for workout "{self.new_workout}"'
+        self.current_exercise = None
+        return msg
+    def show_workout(self):
+        if self.new_workout is None:
+            return 'Not currently logging a workout. Run "/start_workout"'
+        elif self.workout is None or self.workout == {} and (self.workout_exercise_position is None and self.current_exercise is None):
+            return f'No exercises logged for workout {self.new_workout}'
+        elif self.workout is None or self.workout == {}:
+            return f'WORKOUT_{self.new_workout} = {{}}\nCURRENT_EXERCISE = "{self.current_exercise}"'
+        return f'WORKOUT_{self.new_workout} = {json.dumps(self.workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -134,17 +228,19 @@ class NewExerciseModal(discord.ui.Modal):
             'exercise_name': re.sub(r'__+','_',str(self.name.value).strip().upper().replace(' ','_')),
             'area': str(self.area.value).strip().upper(),
             'units': str(self.units.value).strip(),
-            'sets': str(self.sets.value).replace(' ','')
+            'sets': re.sub(r'(\d+)[xX](\d+)', r'\1x\2', str(self.sets.value).replace(' ','')).split(',')
         }
         check_new_exercise_name = re.findall(r'^[A-Z0-9_\-]+$',new_exercise['exercise_name'])
         user_response_valid = (
-                EXERCISE_TRACKER.area_exists(new_exercise['area']))\
+                (not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))
+                and EXERCISE_TRACKER.area_exists(new_exercise['area']))\
                 and (len(check_new_exercise_name) != 0 and check_new_exercise_name[0] == new_exercise['exercise_name']\
-                and valid_data_format(new_exercise['units'], new_exercise['sets'])
+                and all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])
             )
         if user_response_valid:
-            EXERCISE_TRACKER.add_new_exercise(new_exercise)
-            await interaction.response.send_message(f'''Added new exercise, "{new_exercise['exercise_name']}"''', ephemeral=True)
+            msg = EXERCISE_TRACKER.add_new_exercise(new_exercise)
+            msg = msg if msg.startswith('Added new') else f'''{msg}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
+            await interaction.response.send_message(msg, ephemeral=True)
         else:
             await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again.",ephemeral=True)
 
@@ -180,14 +276,29 @@ async def get_sets(interaction: discord.Interaction, sets: str):
 ### (end_workout)
 @bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE", guild=guild)
 async def end_workout(interaction: discord.Interaction):
+    await interaction.response.defer()
     msg = EXERCISE_TRACKER.end_workout()
-    await interaction.response.send_message(msg, ephemeral=True)
+    await interaction.followup.send(msg, ephemeral=True)
 
 
 
+### (abort_workout)
+@bot.tree.command(name="abort_workout", description="Stop logging the current workout without saving", guild=guild)
+async def abort_workout(interaction: discord.Interaction):
+    msg = EXERCISE_TRACKER.abort_workout()
+    await interaction.response.send_message(msg,ephemeral=True)
 
+### (abort_exercise)
+@bot.tree.command(name="abort_exercise", description="Stop logging the current exercise without saving it",guild=guild)
+async def abort_exercise(interaction: discord.Interaction):
+    msg = EXERCISE_TRACKER.abort_exercise()
+    await interaction.response.send_message(msg,ephemeral=True)
 
-
+### (show_workout)
+@bot.tree.command(name="show_workout", description="Print your progress in the current workout",guild=guild)
+async def show_workout(interaction: discord.Interaction):
+    msg = EXERCISE_TRACKER.show_workout()
+    await interaction.response.send_message(msg,ephemeral=True)
 
 
 @bot.event
