@@ -42,13 +42,16 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.workout = {}
         return f'Started logging new workout: {self.new_workout}'
     def get_exercise(self, exercise_name):
+        exercise_name = re.sub(r'__+','_',exercise_name.upper().strip().replace(' ','_'))
+        if self.workout_exercise_position is None:
+            self.workout_exercise_position = 0
+        if self.current_exercise is None:
+            self.exercise_name = exercise_name
         if self.cannot_perform_action():
-            if self.workout_exercise_position is None
             if self.log_workout == False:
                 return f'Not currently logging a workout. Run "/start_workout"'
             else:
                 return f'UNEXPECTED INPUT DETECTED'
-        exercise_name = re.sub(r'__+','_',exercise_name.upper().strip().replace(' ','_'))
         if not self.exercise_exists(exercise_name):
             return f'"{exercise_name}" doesn\'t exist. Run "/newexercise {exercise_name}"'
         if exercise_name == "DAY_OFF":
