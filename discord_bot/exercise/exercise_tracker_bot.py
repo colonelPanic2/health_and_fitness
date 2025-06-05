@@ -8,6 +8,7 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'bot_metadata')))
 from exercise_tracker_bot_MDATA import *
+from tabulate import tabulate
 if not platform.startswith('win'):
     os.system('pwd')
 guild = discord.Object(id=GUILD_ID)
@@ -148,6 +149,36 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         elif self.workout is None or self.workout == {}:
             return f'WORKOUT_{self.new_workout} = {{}}\nCURRENT_EXERCISE = "{self.current_exercise}"'
         return f'WORKOUT_{self.new_workout} = {json.dumps(self.workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
+    def get_last_workout_date(self):
+        last_workout_index = self.get_latest_workout()
+        df = self.data.query('workout == @last_workout_index')[['workout','dw_mod_ts']].head(1)
+        if df.empty:
+            return "No data found for this exercise."
+        # Convert DataFrame to string with tabulate for better formatting
+        try:
+            table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
+        except ImportError:
+            table = df.to_string(index=False)
+        return f"```\n{table}\n```"
+        # if not latest_date.empty:
+        #     latest_date = str(latest_date['date'].iloc[0])
+        # else:
+        #     latest_date = None
+        # return latest_date
+    def get_latest_instance_data(self, exercise):
+        latest_instance_index = self.get_latest_instance(exercise)
+        top_3_range = list(range(max(0,latest_instance_index-2),latest_instance_index+1))
+        # Format the DataFrame as a code block for Discord
+        df = self.data.query('exercise == @exercise and instance in @top_3_range')[['exercise','instance','position','set','data']]
+        if df.empty:
+            return "No data found for this exercise."
+        # Convert DataFrame to string with tabulate for better formatting
+        try:
+            table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
+        except ImportError:
+            table = df.to_string(index=False)
+        return f"```\n{table}\n```"
+    
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -184,7 +215,7 @@ class NewExerciseModal(discord.ui.Modal):
             msg = msg if msg.startswith('Added new') else f'''{msg}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
             await interaction.response.send_message(msg, ephemeral=True)
         else:
-            await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again.",ephemeral=True)
+            await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again. {user_response_valid}",ephemeral=True)
 
 
 ### (add_new_exercise) Let the user add a new exercise to the list
@@ -221,6 +252,7 @@ async def end_workout(interaction: discord.Interaction):
     await interaction.response.defer()
     msg = EXERCISE_TRACKER.end_workout()
     await interaction.followup.send(msg, ephemeral=True)
+    EXERCISE_TRACKER.refresh_data()
 
 
 
@@ -241,6 +273,21 @@ async def abort_exercise(interaction: discord.Interaction):
 async def show_workout(interaction: discord.Interaction):
     msg = EXERCISE_TRACKER.show_workout()
     await interaction.response.send_message(msg,ephemeral=True)
+
+### (get_last_workout_date)
+@bot.tree.command(name="last_workout_date", description="Get the timestamp of the most recent workout", guild=guild)
+async def last_workout_date(interaction: discord.Interaction):
+    msg = EXERCISE_TRACKER.get_last_workout_date()
+    await interaction.response.send_message(msg,ephemeral=True)
+
+### (get_latest_instance_data)
+@bot.tree.command(name="latest_instance_data", description="Get the last 1-3 instances of the given workout", guild=guild)
+@app_commands.describe(name="Name of the exercise")
+@app_commands.autocomplete(name=exercise_autocomplete)
+async def exercise(interaction: discord.Interaction, name: str):
+    msg = EXERCISE_TRACKER.get_latest_instance_data(name)
+    await interaction.response.send_message(msg, ephemeral=True)
+
 
 
 @bot.event

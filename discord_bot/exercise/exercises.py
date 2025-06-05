@@ -56,11 +56,15 @@ def sort_by_distances(input_str, str_list, get_top_k = None):
 def valid_data_format(units, set_entry):
     return bool( (units == '' and re.match(r'^\d+x\d+$',set_entry)) or (units != '' and re.match(r'^\d+$',set_entry)) )
 
+# SW-LT : Shoulder_width-legs_together, each variation gets 1/2 the reps
+
 class EXERCISE_HISTORY_CLS():
     def __init__(self,PATH):
         self.path = PATH
         self.primary_keys = ['exercise','area','instance','workout','position','set']
-        self.data = pd.read_csv(PATH,keep_default_na=False)
+        self.refresh_data()
+    def refresh_data(self):
+        self.data = pd.read_csv(self.path,keep_default_na=False)
         self.exercises = sorted(list(set(self.data['exercise'].tolist())))
         self.areas = list(set(self.data['area'].tolist()))
         self.units = list(set(self.data[self.data['units'].apply(lambda x: pd.notna(x) and str(x).strip()!='')]['units'].tolist()))
@@ -71,7 +75,10 @@ class EXERCISE_HISTORY_CLS():
     def get_units(self, exercise):
         if not self.exercise_exists(exercise):
             return None
-        units = self.data.query(f'exercise == "{exercise}"')['units'].tolist()[0]
+        units = self.data.query(f'exercise == "{exercise}"')['units']#.tolist()
+        if units.empty:
+            return None
+        units = units.tolist()[0]
         if pd.isna(units) or str(units).strip() == '':
             return ''
         else:
@@ -79,7 +86,10 @@ class EXERCISE_HISTORY_CLS():
     def get_area(self, exercise):
         if not self.exercise_exists(exercise):
             return None
-        area = self.data.query(f'exercise == "{exercise}"')['area'].tolist()[0]
+        area = self.data.query(f'exercise == "{exercise}"')['area']#.tolist()
+        if area.empty:
+            return None
+        area = area.tolist()[0]
         return area
     def get_latest_instance(self, exercise):
         if not self.exercise_exists(exercise):
