@@ -21,61 +21,6 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.current_exercise = None
         self.new_workout = None
         self.workout = None
-        self.WORKOUT_15 = {
-            0: {
-                "exercise_name": "EZ_BAR_CURL",
-                "stats": {
-                    0: "12x60",
-                    1: "12x50",
-                    2: "12x50",
-                    3: "12x50"
-                }
-            },
-            1: {
-                "exercise_name": "CLOSE_GRIP_EZ_BAR_CURL",
-                "stats": {
-                    0: "12x50",
-                    1: "12x50",
-                    2: "12x60",
-                    3: "12x50"
-                }
-            },
-            2: {
-                "exercise_name": "DUMBBELL_LATERAL_RAISE",
-                "stats": {
-                    0: "12x20",
-                    1: "12x20",
-                    2: "12x20"
-                }
-            },
-            3: {
-                "exercise_name": "REAR_DELT_EXTENSION",
-                "area": "BACK",
-                "units": "",
-                "stats": {
-                    0: "10x55",
-                    1: "10x60",
-                    2: "10x65"
-                }
-            },
-            4: {
-                "exercise_name": "INCLINED_BENCH_PRESS",
-                "stats": {
-                    "0": "12x75",
-                    "1": "12x75",
-                    "2": "12x65",
-                    "3": "12x60"
-                }
-            },
-            5: {
-                "exercise_name": "LAT_PULLDOWN",
-                "stats": {
-                    0: "12x90",
-                    1: "12x90",
-                    2: "12x90"
-                }
-            }
-        }
     def cannot_perform_action(self):
         status = bool(
             self.log_workout == False 
@@ -160,10 +105,6 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         # Defined for the definition of "add_workout" in exercises.py
         return self.workout
     def end_workout(self):
-        self.log_workout = True
-        self.workout = self.WORKOUT_15
-        self.new_workout = 15
-        self.new_exercises = {'REAR_DELT_EXTENSION': {'units': '', 'area': 'BACK'}}
         if self.workout is not None and self.workout == {}:
             self.log_workout = False
             self.workout_exercise_position = None
