@@ -115,12 +115,13 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         if self.log_workout == False or self.workout is None or self.new_workout is None:
             return f'Not currently logging a workout. Run "/start_workout"'
         self.add_workout()
+        new_workout = self.new_workout
         self.log_workout = False
         self.workout_exercise_position = None
         self.current_exercise = None
         self.new_workout = None
         self.workout = None
-        return f'Finished logging new workout: {self.new_workout}\nGood job!'
+        return f'Finished logging new workout: {new_workout}\nGood job!'
     def abort_workout(self):
         if self.new_workout is None:
             return f'Not currently logging a workout. Run "/start_workout"'
