@@ -143,6 +143,11 @@ class NewExerciseModal(discord.ui.Modal):
             await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again.",ephemeral=True)
 
 
+### (add_new_exercise) Let the user add a new exercise to the list
+@bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
+async def new_exercise(interaction: discord.Interaction):
+    await interaction.response.send_modal(NewExerciseModal())
+
 ### (start_workout)
 @bot.tree.command(name="start_workout", description="Start logging a new workout")
 async def start_workout(interaction: discord.Interaction):
@@ -157,6 +162,7 @@ async def exercise_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
+    await bot.tree.sync(guilld=discord.Object(id=int(GUILD_ID)))
     msg = EXERCISE_TRACKER.get_exercise(name)
     await interaction.response.send_message(msg, ephemeral=True)
 
@@ -169,11 +175,6 @@ async def get_sets(interaction: discord.Interaction, sets: str):
 @bot.tree.command(name="ping",description="ping chillin")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("hi", ephemeral=True)
-
-### (add_new_exercise) Let the user add a new exercise to the list
-@bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry")
-async def new_exercise(interaction: discord.Interaction):
-    await interaction.response.send_modal(NewExerciseModal())
 
 ### (end_workout)
 @bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE")
