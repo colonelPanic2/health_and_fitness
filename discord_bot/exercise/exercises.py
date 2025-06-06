@@ -1,12 +1,12 @@
 import pandas as pd
 import json
-import sys
+import sys, os
 import re
 from tabulate import tabulate
 
 RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
 EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + RELATIVE_PATH
-PRIMARY_KEYS = ['exercise','area','instance','workout','set','position']
+PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 
 def print_list(inp_list,title=''):
     if title != '':
@@ -63,10 +63,13 @@ def valid_data_format(units, set_entry):
 class EXERCISE_HISTORY_CLS():
     def __init__(self,PATH):
         self.path = PATH
-        self.primary_keys = ['exercise','area','instance','workout','position','set']
+        self.primary_keys = PRIMARY_KEYS
         self.refresh_data()
     def refresh_data(self):
-        self.data = pd.read_csv(self.path,keep_default_na=False)
+        if not os.path.exists(self.path):
+            self.data = pd.DataFrame(['exercise','area','instance','workout','position','set','data','units','dw_mod_ts'])
+        else:
+            self.data = pd.read_csv(self.path,keep_default_na=False)
         self.exercises = sorted(list(set(self.data['exercise'].tolist())))
         self.areas = list(set(self.data['area'].tolist()))
         self.units = list(set(self.data[self.data['units'].apply(lambda x: pd.notna(x) and str(x).strip()!='')]['units'].tolist()))
