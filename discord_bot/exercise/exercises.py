@@ -4,8 +4,8 @@ import sys, os
 import re
 from tabulate import tabulate
 
-RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
-EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + RELATIVE_PATH
+EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
+EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + EXERCISE_RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 
 def print_list(inp_list,title=''):

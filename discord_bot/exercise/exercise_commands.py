@@ -12,7 +12,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-EXERCISE_TRACKER = None # The tracker objects will be initialized in bot.py
+EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
 
 class NewExerciseModal(discord.ui.Modal):
     def __init__(self):

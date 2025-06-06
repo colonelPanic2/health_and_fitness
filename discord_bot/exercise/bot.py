@@ -1,7 +1,6 @@
 from exercise_commands import *
 from schedule_commands import *
 
-EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
 
 @bot.event
 async def on_ready():
