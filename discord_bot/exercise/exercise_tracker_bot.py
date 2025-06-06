@@ -122,6 +122,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.current_exercise = None
         self.new_workout = None
         self.workout = None
+        self.refresh_data()
         return f'Finished logging new workout: {new_workout}\nGood job!'
     def abort_workout(self):
         if self.new_workout is None:
@@ -215,7 +216,7 @@ class NewExerciseModal(discord.ui.Modal):
             msg = msg if msg.startswith('Added new') else f'''{msg}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
             await interaction.response.send_message(msg, ephemeral=True)
         else:
-            await interaction.response.send_message(f"❌ Invalid input. Please check your values and try again. {user_response_valid}",ephemeral=True)
+            await interaction.response.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"''',ephemeral=True)
 
 
 ### (add_new_exercise) Let the user add a new exercise to the list
@@ -252,7 +253,6 @@ async def end_workout(interaction: discord.Interaction):
     await interaction.response.defer()
     msg = EXERCISE_TRACKER.end_workout()
     await interaction.followup.send(msg, ephemeral=True)
-    EXERCISE_TRACKER.refresh_data()
 
 
 
