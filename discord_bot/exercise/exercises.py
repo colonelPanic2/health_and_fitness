@@ -1,9 +1,11 @@
 import pandas as pd
-import re
 import json
-from sys import platform, argv
+import sys
+import re
+from tabulate import tabulate
+
 RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
-EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if platform.startswith('win') else '/home/luis/Documents/Fitness/') + RELATIVE_PATH
+EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','set','position']
 
 def print_list(inp_list,title=''):
@@ -253,6 +255,176 @@ class EXERCISE_HISTORY_CLS():
         return unit in self.units
     def adding_exercise(self, exercise_name):
         return exercise_name in self.new_exercises
+
+
+class ExerciseTracker(EXERCISE_HISTORY_CLS):
+    def __init__(self, PATH):
+        super().__init__(PATH)
+        self.log_workout = False
+        self.workout_exercise_position = None
+        self.current_exercise = None
+        self.new_workout = None
+        self.workout = None
+    def cannot_perform_action(self):
+        status = bool(
+            self.log_workout == False 
+            or self.workout_exercise_position is None 
+            or self.current_exercise is None 
+            or self.new_workout is None 
+            or self.workout is None
+        )
+        return status
+    def start_workout(self):
+        if self.new_workout is not None and self.workout is not None:
+            return f'Finish logging the current workout, "{self.new_workout}", before starting a new workout'
+        elif self.new_workout is not None or self.workout is not None:
+            return f'ERROR: The bot is in an unexpected state\nworkout_index = {self.new_workout}\nworkout = {self.workout}'
+        self.log_workout = True
+        self.workout_exercise_position = 0
+        self.current_exercise = None
+        self.new_workout = self.get_latest_workout() + 1
+        self.workout = {}
+        return f'Started logging new workout: {self.new_workout}'
+    def get_exercise(self, exercise_name):
+        exercise_name = re.sub(r'__+','_',exercise_name.upper().strip().replace(' ','_'))
+        if self.workout_exercise_position is None:
+            self.workout_exercise_position = 0
+        if self.current_exercise is None:
+            self.current_exercise = exercise_name
+        if self.cannot_perform_action():
+            if self.log_workout == False:
+                return f'Not currently logging a workout. Run "/start_workout"'
+            else:
+                return f'UNEXPECTED INPUT DETECTED'
+        if not self.exercise_exists(exercise_name):
+            return f'"{exercise_name}" doesn\'t exist. Run "/newexercise {exercise_name}"'
+        if exercise_name == "DAY_OFF":
+            self.workout[self.workout_exercise_position] = {"exercise_name": exercise_name, "stats": {0: 24}}
+            self.workout_exercise_position += 1
+            self.current_exercise = None
+            return "Enjoy your day off!"
+        self.current_exercise = exercise_name
+        return f'Now logging sets for "{exercise_name}". Run "/sets" to log results'
+    def get_sets(self, sets):
+        if self.cannot_perform_action():
+            if self.log_workout == False:
+                return f'Not currently logging a workout. Run "/start_workout"'
+            elif self.current_exercise is None or self.workout_exercise_position is None:
+                return f'Not currently logging an exercise. Run "/exercise" or "/newexercise"'
+            else:
+                return f'UNEXPECTED INPUT DETECTED'
+        sets = re.sub(r'(\d+)[xX](\d+)', r'\1x\2', sets.replace(' ',''))
+        sets_list = sets.split(',')
+        sets_dict = {}
+        msg = ''
+        for i,set in enumerate(sets_list):
+            if not valid_data_format(self.get_units(self.current_exercise), set):
+                msg += f'(SET {i+1}) Invalid entry: "{set}"' + str('\n' if i < len(sets)-1 else '')
+            else:
+                sets_dict[i] = set
+        if msg != '':
+            return msg
+        else:
+            msg = f'({self.workout_exercise_position+1}) "{self.current_exercise}" - {", ".join(sets_list)}'
+        self.workout[self.workout_exercise_position] = {'exercise_name': self.current_exercise, 'stats': sets_dict}
+        self.workout_exercise_position += 1
+        self.current_exercise = None
+        return msg
+    def add_new_exercise(self, exercise):
+        self.current_exercise = exercise['exercise_name']
+        if self.cannot_perform_action():
+            self.current_exercise = None
+            if self.log_workout == False:
+                return f'Not currently logging a workout. Run "/start_workout"'
+            else:
+                return f'UNEXPECTED INPUT DETECTED'
+        self.new_exercises[self.current_exercise] = {'units': exercise['units'], 'area': exercise['area']}
+        self.exercises.append(exercise['exercise_name'])
+        exercise_log = {'exercise_name': exercise['exercise_name'], 'stats': {i: set_ for i,set_ in enumerate(exercise['sets'])}}
+        self.workout[self.workout_exercise_position] = exercise_log
+        self.workout_exercise_position += 1
+        self.current_exercise=None
+        return f'''Added new exercise:\n"({self.workout_exercise_position}) {exercise['exercise_name']}" - {", ".join(exercise["sets"])}'''
+    def get_workout(self):
+        # Defined for the definition of "add_workout" in exercises.py
+        return self.workout
+    def end_workout(self):
+        if self.workout is not None and self.workout == {}:
+            self.log_workout = False
+            self.workout_exercise_position = None
+            self.current_exercise = None
+            self.new_workout = None
+            self.workout = None
+            return f'ABORT: Stopped logging exercise "{self.new_workout}" without saving'
+        if self.log_workout == False or self.workout is None or self.new_workout is None:
+            return f'Not currently logging a workout. Run "/start_workout"'
+        self.add_workout()
+        new_workout = self.new_workout
+        _ = self._reset_state()
+        return f'Finished logging new workout: {new_workout}\nGood job!'
+    def abort_workout(self):
+        if self.new_workout is None:
+            return f'Not currently logging a workout. Run "/start_workout"'
+        msg = f'Aborted logging workout {self.new_workout}'
+        self.log_workout = False
+        self.workout_exercise_position = None
+        self.current_exercise = None
+        self.new_workout = None
+        self.workout = None
+        return msg
+    def abort_exercise(self):
+        if self.new_workout is None or self.log_workout == False:
+            return f'Not currently logging a workout. Run "/start_workout"'
+        elif self.current_exercise is None:
+            return f'Not currently logging an exercise for workout "{self.new_workout}". Run "/exercise" or "/newexercise"'
+        msg = f'ABORT: Stopped logging "{self.current_exercise}" for workout "{self.new_workout}"'
+        self.current_exercise = None
+        return msg
+    def show_workout(self):
+        if self.new_workout is None:
+            return 'Not currently logging a workout. Run "/start_workout"'
+        elif self.workout is None or self.workout == {} and (self.workout_exercise_position is None and self.current_exercise is None):
+            return f'No exercises logged for workout {self.new_workout}'
+        elif self.workout is None or self.workout == {}:
+            return f'WORKOUT_{self.new_workout} = {{}}\nCURRENT_EXERCISE = "{self.current_exercise}"'
+        return f'WORKOUT_{self.new_workout} = {json.dumps(self.workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
+    def get_last_workout_date(self):
+        last_workout_index = self.get_latest_workout()
+        df = self.data.query('workout == @last_workout_index')[['workout','dw_mod_ts']].head(1)
+        if df.empty:
+            return "No data found for this exercise."
+        # Convert DataFrame to string with tabulate for better formatting
+        try:
+            table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
+        except ImportError:
+            table = df.to_string(index=False)
+        return f"```\n{table}\n```"
+    def get_latest_instance_data(self, exercise):
+        latest_instance_index = self.get_latest_instance(exercise)
+        top_3_range = list(range(max(0,latest_instance_index-2),latest_instance_index+1))
+        # Format the DataFrame as a code block for Discord
+        df = self.data.query('exercise == @exercise and instance in @top_3_range')[['exercise','instance','position','set','data']]
+        if df.empty:
+            return "No data found for this exercise."
+        # Convert DataFrame to string with tabulate for better formatting
+        try:
+            table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
+        except ImportError:
+            table = df.to_string(index=False)
+        return f"```\n{table}\n```"
+    def _reset_state(self):
+        try:
+            ### Reset the ExerciseTracker attributes to their default states
+            self.log_workout = False
+            self.workout_exercise_position = None
+            self.current_exercise = None
+            self.new_workout = None
+            self.workout = None
+            ### Reset the EXERCISE_HISTORY_CLS attributes to their default states
+            self.refresh_data()
+            return f'Bot state restored successfully'
+        except Exception as e:
+            return f"FATAL ERROR: COULDN'T RESTORE THE BOT TO IT'S DEFAULT STATE."
 
 
 exercises_by_area = {
@@ -543,12 +715,12 @@ exercises_by_area = {
 
 
 if __name__ == '__main__':
-    if len(argv) >= 2:
+    if len(sys.argv) >= 2:
         # wsl python3 Fitness/exercises.py WORKOUT
-        if argv[-1].upper().strip() == 'WORKOUT':
+        if sys.argv[-1].upper().strip() == 'WORKOUT':
             HISTORY = EXERCISE_HISTORY_CLS(EXERCISE_HISTORY_PATH)
             HISTORY.add_workout()
         # wsl python3 Fitness/exercises.py SUMMARY | clip.exe
-        elif argv[-1].upper().strip() == 'SUMMARY':
+        elif sys.argv[-1].upper().strip() == 'SUMMARY':
             HISTORY = EXERCISE_HISTORY_CLS(EXERCISE_HISTORY_PATH)
             HISTORY.print_exercise_history_summary()
