@@ -109,7 +109,7 @@ async def last_workout_date(interaction: discord.Interaction):
     await interaction.response.send_message(msg,ephemeral=True)
 
 ### (get_latest_instance_data)
-@bot.tree.command(name="latest_instance_data", description="Get the last 1-3 instances of the given workout", guild=guild)
+@bot.tree.command(name="exercise_hist", description="Get the last 1-3 instances of the given workout", guild=guild)
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
