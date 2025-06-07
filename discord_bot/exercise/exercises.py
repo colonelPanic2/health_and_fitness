@@ -70,6 +70,8 @@ class EXERCISE_HISTORY_CLS():
             self.data = pd.DataFrame(['exercise','area','instance','workout','position','set','data','units','dw_mod_ts'])
         else:
             self.data = pd.read_csv(self.path,keep_default_na=False)
+        if 'instance' in self.data.columns:
+            self.data['instance'] = pd.to_numeric(self.data['instance'], errors='coerce').fillna(-1).astype(int)
         self.exercises = sorted(list(set(self.data['exercise'].tolist())))
         self.areas = list(set(self.data['area'].tolist()))
         self.units = list(set(self.data[self.data['units'].apply(lambda x: pd.notna(x) and str(x).strip()!='')]['units'].tolist()))
