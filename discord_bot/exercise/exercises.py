@@ -403,7 +403,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             table = df.to_string(index=False)
         return f"```\n{table}\n```"
     def get_latest_instance_data(self, exercise):
-        latest_instance_index = int(self.get_latest_instance(exercise))
+        latest_instance_index = int(float(self.get_latest_instance(exercise)))
         top_3_range = list(range(max(0,latest_instance_index-2),latest_instance_index+1))
         # Format the DataFrame as a code block for Discord
         df = self.data.query('exercise == @exercise and instance in @top_3_range')[['exercise','instance','position','set','data']]
