@@ -27,7 +27,7 @@ class NewExerciseModal(discord.ui.Modal):
         self.add_item(self.sets)
     async def on_submit(self, interaction: discord.Interaction):
         new_exercise = {
-            'exercise_name': re.sub(r'__+','_',str(self.name.value).strip().upper().replace(' ','_')),
+            'exercise_name': process_exercise_name(self.name.value),#re.sub(r'__+','_',str(self.name.value).strip().upper().replace(' ','_')),
             'area': str(self.area.value).strip().upper(),
             'units': str(self.units.value).strip(),
             'sets': re.sub(r'(\d+)[xX](\d+)', r'\1x\2', str(self.sets.value).replace(' ','')).split(',')
@@ -60,6 +60,7 @@ async def start_workout(interaction: discord.Interaction):
 
 ### (get_exercise) Add a new entry for an existing exercise
 async def exercise_autocomplete(interaction: discord.Interaction, current: str):
+    current = process_exercise_name(current)
     matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.3)
     return [app_commands.Choice(name=match, value=match) for match in matches]
 @bot.tree.command(name="exercise", description="Pick an exercise from a list", guild=guild)

@@ -57,7 +57,8 @@ def sort_by_distances(input_str, str_list, get_top_k = None):
     return df_distances.head(get_top_k)
 def valid_data_format(units, set_entry):
     return bool( (units == '' and re.match(r'^\d+x\d+$',set_entry)) or (units != '' and re.match(r'^\d+$',set_entry)) )
-
+def process_exercise_name( exercise_name):
+    return re.sub(r'__+','_',str(exercise_name).strip().upper().replace(' ','_')).strip('_'),
 # SW-LT : Shoulder_width-legs_together, each variation gets 1/2 the reps
 
 class EXERCISE_HISTORY_CLS():
@@ -291,7 +292,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.workout = {}
         return f'Started logging new workout: {self.new_workout}'
     def get_exercise(self, exercise_name):
-        exercise_name = re.sub(r'__+','_',exercise_name.upper().strip().replace(' ','_'))
+        exercise_name = process_exercise_name(exercise_name)#re.sub(r'__+','_',exercise_name.upper().strip().replace(' ','_'))
         if self.workout_exercise_position is None:
             self.workout_exercise_position = 0
         if self.current_exercise is None:
