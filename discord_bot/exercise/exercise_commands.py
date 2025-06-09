@@ -118,7 +118,8 @@ async def exercise(interaction: discord.Interaction, name: str):
     if type(msg) == str:
         await interaction.response.send_message(msg, ephemeral=True)
     else:
-        await interaction.response.send_message(file=msg, filename=f'{process_exercise_name(name)}.png', ephemeral=True)
+        name = process_exercise_name(name)
+        await interaction.response.send_message(name, file=msg, ephemeral=True)
 
 ### (_reset_state)
 @bot.tree.command(name="restore", description="Restore the bot to its default state",guild=guild)

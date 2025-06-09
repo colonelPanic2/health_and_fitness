@@ -12,26 +12,18 @@ EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win'
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 
 
-def render_table_image(data: list[dict], title: str = "Exercise Log") -> io.BytesIO:
-    # Extract columns
-    columns = list(data[0].keys())
-    rows = [[str(row[col]) for col in columns] for row in data]
+def render_table_image(df: pd.DataFrame) -> io.BytesIO:
+    fig, ax = plt.subplots(figsize=(len(df.columns) * 2, len(df) * 0.5 + 1))
+    ax.axis('off')
+    table = ax.table(cellText=df.values, colLabels=df.columns, cellLoc='center', loc='center')
+    table.scale(1, 1.5)
+    plt.tight_layout()
 
-    fig, ax = plt.subplots(figsize=(min(len(columns) * 2, 12), min(len(rows) * 0.6 + 1, 20)))
-    ax.axis("off")
-    ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
-
-    table = ax.table(cellText=rows, colLabels=columns, cellLoc='center', loc='center')
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.2, 1.2)
-
-    # Save to BytesIO
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight", dpi=150)
-    buf.seek(0)
-    plt.close(fig)
-    return buf
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', bbox_inches='tight')
+    buffer.seek(0)
+    plt.close(fig)  # Close the figure to prevent memory leaks
+    return buffer
 def print_list(inp_list,title=''):
     if title != '':
         title = title+': \n'
@@ -440,10 +432,10 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         # Convert DataFrame to string with tabulate for better formatting
         try:
             # table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
-            table = File(render_table_image(df, title=exercise))
+            table = File(fp=render_table_image(df), filename=f'{exercise}.png')
         except ImportError:
             table = df.to_string(index=False)
-        return f"```\n{table}\n```"
+            return f"```\n{table}\n```"
     def _reset_state(self):
         try:
             ### Reset the ExerciseTracker attributes to their default states
