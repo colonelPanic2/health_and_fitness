@@ -433,6 +433,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         try:
             # table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
             table = File(fp=render_table_image(df), filename=f'{exercise}.png')
+            return table
         except ImportError:
             table = df.to_string(index=False)
             return f"```\n{table}\n```"
