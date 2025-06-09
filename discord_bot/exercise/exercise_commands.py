@@ -115,7 +115,10 @@ async def last_workout_date(interaction: discord.Interaction):
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.get_latest_instance_data(name)
-    await interaction.response.send_message(msg, ephemeral=True)
+    if type(msg) == str:
+        await interaction.response.send_message(msg, ephemeral=True)
+    else:
+        await interaction.response.send_message(file=msg, filename=f'{process_exercise_name(name)}.png', ephemeral=True)
 
 ### (_reset_state)
 @bot.tree.command(name="restore", description="Restore the bot to its default state",guild=guild)

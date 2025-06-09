@@ -3,11 +3,35 @@ import json
 import sys, os
 import re
 from tabulate import tabulate
+import matplotlib.pyplot as plt
+import io
+from discord import File
 
 EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
 EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + EXERCISE_RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 
+
+def render_table_image(data: list[dict], title: str = "Exercise Log") -> io.BytesIO:
+    # Extract columns
+    columns = list(data[0].keys())
+    rows = [[str(row[col]) for col in columns] for row in data]
+
+    fig, ax = plt.subplots(figsize=(min(len(columns) * 2, 12), min(len(rows) * 0.6 + 1, 20)))
+    ax.axis("off")
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
+
+    table = ax.table(cellText=rows, colLabels=columns, cellLoc='center', loc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)
+
+    # Save to BytesIO
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+    buf.seek(0)
+    plt.close(fig)
+    return buf
 def print_list(inp_list,title=''):
     if title != '':
         title = title+': \n'
@@ -415,7 +439,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return "No data found for this exercise."
         # Convert DataFrame to string with tabulate for better formatting
         try:
-            table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
+            # table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
+            table = File(render_table_image(df, title=exercise))
         except ImportError:
             table = df.to_string(index=False)
         return f"```\n{table}\n```"
