@@ -406,6 +406,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             table = df.to_string(index=False)
         return f"```\n{table}\n```"
     def get_latest_instance_data(self, exercise):
+        exercise = process_exercise_name(exercise)
         latest_instance_index = int(float(self.get_latest_instance(exercise)))
         top_3_range = list(range(max(0,latest_instance_index-2),latest_instance_index+1))
         # Format the DataFrame as a code block for Discord
