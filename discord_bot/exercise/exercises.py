@@ -6,6 +6,7 @@ from tabulate import tabulate
 import matplotlib.pyplot as plt
 import io
 from discord import File
+import zipfile
 
 EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
 EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + EXERCISE_RELATIVE_PATH
@@ -450,7 +451,15 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return f'Bot state restored successfully'
         except Exception as e:
             return f"FATAL ERROR: COULDN'T RESTORE THE BOT TO IT'S DEFAULT STATE."
-
+    def _get_backup(self):
+        csv_buffer = io.StringIO()
+        self.data = pd.read_csv(self.path,keep_default_na=False)
+        csv_bytes = self.data.to_csv(csv_buffer)
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr(self.path.split('/')[-1].replace('.csv','_bckp'), csv_bytes)
+        zip_buffer.seek(0)
+        return zip_buffer
 
 exercises_by_area = {
     'LEGS': {

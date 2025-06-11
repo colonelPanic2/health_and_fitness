@@ -6,6 +6,7 @@ import difflib
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'bot_metadata')))
 from exercise_tracker_bot_MDATA import *
+import datetime
 
 guild = discord.Object(id=GUILD_ID)
 intents = discord.Intents.default()
@@ -82,6 +83,12 @@ async def end_workout(interaction: discord.Interaction):
     await interaction.response.defer()
     msg = EXERCISE_TRACKER.end_workout()
     await interaction.followup.send(msg, ephemeral=True)
+    user_id = interaction.user.id
+    user = await bot.fetch_user(user_id)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    zip_stream = EXERCISE_TRACKER._get_backup()
+    hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+    await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
 
 
 
@@ -127,4 +134,16 @@ async def reset_state(interaction: discord.Interaction):
     await interaction.response.defer()
     msg = EXERCISE_TRACKER._reset_state()
     await interaction.followup.send(msg,ephemeral=True)
+
+### (_get_backup)
+@bot.tree.command(name='backup', description='Save the history as a zipped CSV file')
+async def send_backup(interaction: discord.Interaction):
+    await interaction.response.defer()
+    user_id = interaction.user.id
+    user = await bot.fetch_user(user_id)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    zip_stream = EXERCISE_TRACKER._get_backup()
+    hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+    await interaction.followup.send(f"Backup timestamp: {timestamp}", ephemeral=True)
+    await user.send(f"Backup timestamp: {timestamp}", file=hist_file)
 
