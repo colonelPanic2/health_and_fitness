@@ -70,7 +70,13 @@ async def exercise_autocomplete(interaction: discord.Interaction, current: str):
 async def exercise(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.get_exercise(name)
     await interaction.response.send_message(msg, ephemeral=True)
-
+    if msg.startswith('Finished logging new workout'):
+        user_id = interaction.user.id
+        user = await bot.fetch_user(user_id)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        zip_stream = EXERCISE_TRACKER._get_backup()
+        hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+        await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
 ### (get_sets)
 @bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise", guild=guild)
 async def get_sets(interaction: discord.Interaction, sets: str):
@@ -83,12 +89,13 @@ async def end_workout(interaction: discord.Interaction):
     await interaction.response.defer()
     msg = EXERCISE_TRACKER.end_workout()
     await interaction.followup.send(msg, ephemeral=True)
-    user_id = interaction.user.id
-    user = await bot.fetch_user(user_id)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    zip_stream = EXERCISE_TRACKER._get_backup()
-    hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
-    await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+    if msg.startswith('Finished logging new workout'):
+        user_id = interaction.user.id
+        user = await bot.fetch_user(user_id)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        zip_stream = EXERCISE_TRACKER._get_backup()
+        hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+        await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
 
 
 
@@ -136,7 +143,7 @@ async def reset_state(interaction: discord.Interaction):
     await interaction.followup.send(msg,ephemeral=True)
 
 ### (_get_backup)
-@bot.tree.command(name='backup', description='Save the history as a zipped CSV file')
+@bot.tree.command(name='backup', description='Save the history as a zipped CSV file',guild=guild)
 async def send_backup(interaction: discord.Interaction):
     await interaction.response.defer()
     user_id = interaction.user.id

@@ -325,7 +325,9 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.workout[self.workout_exercise_position] = {"exercise_name": exercise_name, "stats": {0: 24}}
             self.workout_exercise_position += 1
             self.current_exercise = None
-            return "Enjoy your day off!"
+            new_workout = self.new_workout
+            msg = self.end_workout()
+            return f"Finished logging new workout {new_workout}.\nEnjoy your day off!"
         self.current_exercise = exercise_name
         return f'Now logging sets for "{exercise_name}". Run "/sets" to log results'
     def get_sets(self, sets):
@@ -454,10 +456,11 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
     def _get_backup(self):
         csv_buffer = io.StringIO()
         self.data = pd.read_csv(self.path,keep_default_na=False)
-        csv_bytes = self.data.to_csv(csv_buffer)
+        self.data.to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.writestr(self.path.split('/')[-1].replace('.csv','_bckp'), csv_bytes)
+            zip_file.writestr(self.path.split('/')[-1].replace('.csv','_bckp.csv'), csv_buffer.read())
         zip_buffer.seek(0)
         return zip_buffer
 

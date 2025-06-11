@@ -4,22 +4,31 @@ def percent_carbs(carbs_grams, calories):
     return round((carbs_grams * 4) / calories * 100, 3)
 def percent_protein(protein_grams, calories):
     return round((protein_grams * 4) / calories * 100, 3)
+def ci_lean_gain(body_weight):
+    # Return the range of daily calorie intake recommended for lean gaining
+    values = [round(16*body_weight), round(18*body_weight)]
+    average = round(17*body_weight)
+    print(f'Calories:\n\tMIN: {values[0]}\n\tAVG: {average}\n\tMAX: {values[1]}')
+    return average
 
+CURRENT_BODY_WEIGHT = 159.4#int(input('Current body weight (lbs): '))
 
-calories = 2487
-protein_grams = 214
-net_carbs_grams = 211#+38 # 38 grams of fiber
+calorie_intake_avg = ci_lean_gain(CURRENT_BODY_WEIGHT)
+
+calories = calorie_intake_avg
+protein_grams = 231
+net_carbs_grams = 224#+38 # 38 grams of fiber
 fat_grams_map = {
     'fat': {
-        'grams': 82,
+        'grams': 88,
         'percent': '',
     },
     'saturated': {
-        'grams': 24,
+        'grams': 27,
         'percent': '',
     },
     'polyunsaturated': {
-        'grams': 11,
+        'grams': 12,
         'percent': ''
     },
     'monounsaturated': {
@@ -36,3 +45,4 @@ for key in fat_grams_map.keys():
 print(f'''Protein  : {protein_percent}%\nNet Carbs: {net_carbs_percent}%''')
 print('\n    '.join([f'{key}: {data["percent"]}%' for key,data in fat_grams_map.items()]))
 print(f'Total: {protein_percent+net_carbs_percent+fat_grams_map['fat']['percent']}%')
+
