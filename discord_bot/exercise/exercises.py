@@ -368,7 +368,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             else:
                 return f'UNEXPECTED INPUT DETECTED'
         self.new_exercises[self.current_exercise] = {'units': exercise['units'], 'area': exercise['area']}
-        self.exercises.append(exercise['exercise_name'])
+        # self.exercises.append(exercise['exercise_name'])
         exercise_log = {'exercise_name': exercise['exercise_name'], 'stats': {i: set_ for i,set_ in enumerate(exercise['sets'])}}
         self.workout[self.workout_exercise_position] = exercise_log
         self.workout_exercise_position += 1
