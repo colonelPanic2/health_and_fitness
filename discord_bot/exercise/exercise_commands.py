@@ -69,14 +69,22 @@ async def exercise_autocomplete(interaction: discord.Interaction, current: str):
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.get_exercise(name)
-    await interaction.response.send_message(msg, ephemeral=True)
+    # await interaction.response.send_message(msg, ephemeral=True)
     if msg.startswith('Finished logging new workout'):
         user_id = interaction.user.id
         user = await bot.fetch_user(user_id)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         zip_stream = EXERCISE_TRACKER._get_backup()
         hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+        await interaction.response.send_message(msg, ephemeral=True)
         await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+    else:
+        msg2 = EXERCISE_TRACKER.get_latest_instance_data(name)
+        if type(msg2) == str:
+            await interaction.response.send_message(msg2, ephemeral=True)
+        else:
+            name = process_exercise_name(name)
+            await interaction.response.send_message(msg, file=msg2, ephemeral=True)
 ### (get_sets)
 @bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise", guild=guild)
 async def get_sets(interaction: discord.Interaction, sets: str):
@@ -96,7 +104,7 @@ async def end_workout(interaction: discord.Interaction):
         zip_stream = EXERCISE_TRACKER._get_backup()
         hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
         await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
-
+    
 
 
 ### (abort_workout)
@@ -127,7 +135,7 @@ async def last_workout_date(interaction: discord.Interaction):
 @bot.tree.command(name="exercise_hist", description="Get the last 1-3 instances of the given workout", guild=guild)
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
-async def exercise(interaction: discord.Interaction, name: str):
+async def exercise_hist(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.get_latest_instance_data(name)
     if type(msg) == str:
         await interaction.response.send_message(msg, ephemeral=True)

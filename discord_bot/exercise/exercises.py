@@ -83,6 +83,8 @@ class EXERCISE_HISTORY_CLS():
         self.path = PATH
         self.primary_keys = PRIMARY_KEYS
         self.refresh_data()
+    def partition_data(self):
+        self.data_partition = {exercise: self.data.query('exercise == @exercise') for exercise in self.exercises}
     def refresh_data(self):
         if not os.path.exists(self.path):
             self.data = pd.DataFrame(['exercise','area','instance','workout','position','set','data','units','dw_mod_ts'])
@@ -91,6 +93,7 @@ class EXERCISE_HISTORY_CLS():
         if 'instance' in self.data.columns:
             self.data['instance'] = pd.to_numeric(self.data['instance'], errors='coerce').fillna(-1).astype(int)
         self.exercises = sorted(list(set(self.data['exercise'].tolist())))
+        self.partition_data()
         self.areas = list(set(self.data['area'].tolist()))
         self.units = list(set(self.data[self.data['units'].apply(lambda x: pd.notna(x) and str(x).strip()!='')]['units'].tolist()))
         self.workouts = list(set(self.data['workout'].tolist()))
@@ -100,7 +103,7 @@ class EXERCISE_HISTORY_CLS():
     def get_units(self, exercise):
         if not self.exercise_exists(exercise):
             return None
-        units = self.data.query(f'exercise == "{exercise}"')['units']#.tolist()
+        units = self.data_partition.get(exercise,pd.DataFrame(columns=['units']))['units']#.tolist()
         if units.empty:
             return None
         units = units.tolist()[0]
@@ -111,7 +114,7 @@ class EXERCISE_HISTORY_CLS():
     def get_area(self, exercise):
         if not self.exercise_exists(exercise):
             return None
-        area = self.data.query(f'exercise == "{exercise}"')['area']#.tolist()
+        area = self.data_partition.get(exercise,pd.DataFrame(columns=['area']))['area']#.tolist()
         if area.empty:
             return None
         area = area.tolist()[0]
@@ -119,7 +122,7 @@ class EXERCISE_HISTORY_CLS():
     def get_latest_instance(self, exercise):
         if not self.exercise_exists(exercise):
             return -1
-        instance = self.data.query(f'exercise == "{exercise}"')['instance'].max()
+        instance = self.data_partition.get(exercise,pd.DataFrame(columns=['instance']))['instance'].max()
         return instance
     def get_latest_workout(self):
         self.latest_workout = max(self.workouts)
@@ -260,7 +263,7 @@ class EXERCISE_HISTORY_CLS():
     def print_exercise_history_summary(self):
         full_output = 'EXERCISE_SUMMARY:\n\n'
         for EXERCISE in self.exercises:
-            df_tmp = self.data.query(f"exercise == '{EXERCISE}'").sort_values(by=self.primary_keys)
+            df_tmp = self.data_partition.get(EXERCISE,pd.DataFrame(columns=self.primary_keys)).sort_values(by=self.primary_keys)
             units = df_tmp['units'].drop_duplicates().tolist()[0]
             df_tmp_agg = df_tmp[self.primary_keys[:-1]+['units']+['data']].groupby(self.primary_keys[:-1]+['units']).agg({'data': lambda x: ', '.join([str(x_) for x_ in x.tolist()])}).reset_index()
             # full_output += f'{EXERCISE}{str(" ( "+row["units"]+" ) " if (pd.notna(row["units"]) and str(row["units"]).strip()!='') else "")}:\n\t'
@@ -279,7 +282,7 @@ class EXERCISE_HISTORY_CLS():
     def adding_exercise(self, exercise_name):
         return exercise_name in self.new_exercises
 
-
+instance_data_cols = ['exercise','instance','position','set','data']
 class ExerciseTracker(EXERCISE_HISTORY_CLS):
     def __init__(self, PATH):
         super().__init__(PATH)
@@ -288,6 +291,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.current_exercise = None
         self.new_workout = None
         self.workout = None
+        self.partition_data()
     def cannot_perform_action(self):
         status = bool(
             self.log_workout == False 
@@ -429,7 +433,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         latest_instance_index = int(float(self.get_latest_instance(exercise)))
         top_3_range = list(range(max(0,latest_instance_index-2),latest_instance_index+1))
         # Format the DataFrame as a code block for Discord
-        df = self.data.query('exercise == @exercise and instance in @top_3_range')[['exercise','instance','position','set','data']]
+        df = self.data_partition.get(exercise,pd.DataFrame(instance_data_cols)).query('instance in @top_3_range')[instance_data_cols]
         if df.empty:
             return "No data found for this exercise."
         # Convert DataFrame to string with tabulate for better formatting
