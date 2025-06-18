@@ -102,7 +102,7 @@ class EXERCISE_HISTORY_CLS():
     ### NOTE: Functions for getting data from the dataset
     def get_units(self, exercise):
         if not self.exercise_exists(exercise):
-            return None
+            return self.new_exercises.get(exercise,{}).get('units')#None
         units = self.data_partition.get(exercise,pd.DataFrame(columns=['units']))['units']#.tolist()
         if units.empty:
             return None
@@ -113,7 +113,7 @@ class EXERCISE_HISTORY_CLS():
             return units
     def get_area(self, exercise):
         if not self.exercise_exists(exercise):
-            return None
+            return self.new_exercises.get(exercise,{}).get('area')#None
         area = self.data_partition.get(exercise,pd.DataFrame(columns=['area']))['area']#.tolist()
         if area.empty:
             return None
@@ -289,8 +289,10 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.log_workout = False
         self.workout_exercise_position = None
         self.current_exercise = None
+        self.cache_current_exercise = None
         self.new_workout = None
         self.workout = None
+        self.updating_sets = False
         self.partition_data()
     def cannot_perform_action(self):
         status = bool(
@@ -308,15 +310,20 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return f'ERROR: The bot is in an unexpected state\nworkout_index = {self.new_workout}\nworkout = {self.workout}'
         self.log_workout = True
         self.workout_exercise_position = 0
+        self.cache_current_exercise = None
         self.current_exercise = None
+        self.updating_sets = False
         self.new_workout = self.get_latest_workout() + 1
         self.workout = {}
         return f'Started logging new workout: {self.new_workout}'
     def get_exercise(self, exercise_name):
         exercise_name = process_exercise_name(exercise_name)#re.sub(r'__+','_',exercise_name.upper().strip().replace(' ','_'))
+        if not self.exercise_exists(exercise_name):
+            return f"""ERROR: Exercise "{exercise_name}" doesn't exist"""
         if self.workout_exercise_position is None:
             self.workout_exercise_position = 0
         if self.current_exercise is None:
+            self.cache_current_exercise = None#self.current_exercise
             self.current_exercise = exercise_name
         if self.cannot_perform_action():
             if self.log_workout == False:
@@ -327,11 +334,15 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return f'"{exercise_name}" doesn\'t exist. Run "/newexercise {exercise_name}"'
         if exercise_name == "DAY_OFF":
             self.workout[self.workout_exercise_position] = {"exercise_name": exercise_name, "stats": {0: 24}}
-            self.workout_exercise_position += 1
+            self.workout_exercise_position = len(self.workout)#+= 1
+            self.cache_current_exercise = None#self.current_exercise
             self.current_exercise = None
+            self.updating_sets = False
             new_workout = self.new_workout
             msg = self.end_workout()
             return f"Finished logging new workout {new_workout}.\nEnjoy your day off!"
+        self.updating_sets = False
+        self.cache_current_exercise = None#self.current_exercise
         self.current_exercise = exercise_name
         return f'Now logging sets for "{exercise_name}". Run "/sets" to log results'
     def get_sets(self, sets):
@@ -356,10 +367,12 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         else:
             msg = f'({self.workout_exercise_position+1}) "{self.current_exercise}" - {", ".join(sets_list)}'
         self.workout[self.workout_exercise_position] = {'exercise_name': self.current_exercise, 'stats': sets_dict}
-        self.workout_exercise_position += 1
-        self.current_exercise = None
+        self.workout_exercise_position = len(self.workout)#+= 1
+        self.current_exercise = self.cache_current_exercise if self.updating_sets else None
+        self.updating_sets = False
         return msg
     def add_new_exercise(self, exercise):
+        self.cache_current_exercise = self.current_exercise
         self.current_exercise = exercise['exercise_name']
         if self.cannot_perform_action():
             self.current_exercise = None
@@ -371,8 +384,10 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         # self.exercises.append(exercise['exercise_name'])
         exercise_log = {'exercise_name': exercise['exercise_name'], 'stats': {i: set_ for i,set_ in enumerate(exercise['sets'])}}
         self.workout[self.workout_exercise_position] = exercise_log
-        self.workout_exercise_position += 1
+        self.workout_exercise_position = len(self.workout)#+= 1
+        self.cache_current_exercise = None#self.current_exercise
         self.current_exercise=None
+        self.updating_sets = False
         return f'''Added new exercise:\n"({self.workout_exercise_position}) {exercise['exercise_name']}" - {", ".join(exercise["sets"])}'''
     def get_workout(self):
         # Defined for the definition of "add_workout" in exercises.py
@@ -382,6 +397,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.log_workout = False
             self.workout_exercise_position = None
             self.current_exercise = None
+            self.cache_current_exercise = None
+            self.updating_sets = False
             self.new_workout = None
             self.workout = None
             return f'ABORT: Stopped logging exercise "{self.new_workout}" without saving'
@@ -398,6 +415,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.log_workout = False
         self.workout_exercise_position = None
         self.current_exercise = None
+        self.cache_current_exercise = None
+        self.updating_sets = False
         self.new_workout = None
         self.workout = None
         return msg
@@ -407,7 +426,10 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         elif self.current_exercise is None:
             return f'Not currently logging an exercise for workout "{self.new_workout}". Run "/exercise" or "/newexercise"'
         msg = f'ABORT: Stopped logging "{self.current_exercise}" for workout "{self.new_workout}"'
-        self.current_exercise = None
+        self.current_exercise = self.cache_current_exercise if self.updating_sets else None
+        self.workout_exercise_position = len(self.workout)
+        self.cache_current_exercise = None
+        self.updating_sets = False
         return msg
     def show_workout(self):
         if self.new_workout is None:
@@ -430,6 +452,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         return f"```\n{table}\n```"
     def get_latest_instance_data(self, exercise):
         exercise = process_exercise_name(exercise)
+        if not self.exercise_exists(exercise):
+            return f"""ERROR: Exercise "{exercise}" doesn't exist"""
         latest_instance_index = int(float(self.get_latest_instance(exercise)))
         top_3_range = list(range(max(0,latest_instance_index-2),latest_instance_index+1))
         # Format the DataFrame as a code block for Discord
@@ -450,6 +474,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.log_workout = False
             self.workout_exercise_position = None
             self.current_exercise = None
+            self.cache_current_exercise = None
+            self.updating_sets = False
             self.new_workout = None
             self.workout = None
             ### Reset the EXERCISE_HISTORY_CLS attributes to their default states
@@ -467,6 +493,24 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             zip_file.writestr(self.path.split('/')[-1].replace('.csv','_bckp.csv'), csv_buffer.read())
         zip_buffer.seek(0)
         return zip_buffer
+    def change_sets(self, index_and_exercise):
+        parse_input = re.findall(r'^(\d+) - (\S+)$', index_and_exercise)
+        if len(parse_input) == 0:
+            return f'ERROR: Invalid input, "{index_and_exercise}" ({parse_input})'
+        exercise_index, exercise = int(parse_input[0][0]), process_exercise_name(parse_input[0][1])
+        actual_name = self.workout.get(exercise_index,{'exercise_name': ""}).get('exercise_name',"")
+        if len(self.workout) > 0 and not (0<= exercise_index < len(self.workout)):
+            return f'ERROR: exercise index "{exercise_index}" out of range for workout of size {len(self.workout)}'
+        elif actual_name == "":
+            return f'''ERROR: Couldn't retrieve exercise name for index "{exercise_index}"'''
+        elif actual_name != exercise:
+            return f'''ERROR: the exercise, "{actual_name}", at index "{exercise_index}" doesn't match the given exercise, "{exercise}"'''
+        self.cache_current_exercise = self.cache_current_exercise if self.updating_sets else self.current_exercise
+        self.current_exercise = exercise
+        self.workout_exercise_position = exercise_index
+        self.updating_sets = True
+        old_sets = ", ".join([self.workout[self.workout_exercise_position]['stats'][i] for i in range(len(self.workout[self.workout_exercise_position]['stats']))])
+        return f'Modifying sets for exercise "{exercise_index} - {exercise}"\nOld sets: {old_sets}'
 
 exercises_by_area = {
     'LEGS': {

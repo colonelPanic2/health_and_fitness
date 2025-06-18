@@ -78,6 +78,8 @@ async def exercise(interaction: discord.Interaction, name: str):
         hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
         await interaction.response.send_message(msg, ephemeral=True)
         await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+    elif msg.startswith(f'ERROR:'):
+        await interaction.response.send_message(msg, ephemeral=True)
     else:
         msg2 = EXERCISE_TRACKER.get_latest_instance_data(name)
         if type(msg2) == str:
@@ -86,7 +88,7 @@ async def exercise(interaction: discord.Interaction, name: str):
             name = process_exercise_name(name)
             await interaction.response.send_message(msg, file=msg2, ephemeral=True)
 ### (get_sets)
-@bot.tree.command(name="get_sets", description="Add a comma-separated list of the sets for the current exercise", guild=guild)
+@bot.tree.command(name="sets", description="Add a comma-separated list of the sets for the current exercise", guild=guild)
 async def get_sets(interaction: discord.Interaction, sets: str):
     msg = EXERCISE_TRACKER.get_sets(sets)
     await interaction.response.send_message(msg, ephemeral=True)
@@ -162,3 +164,14 @@ async def send_backup(interaction: discord.Interaction):
     await interaction.followup.send(f"Backup timestamp: {timestamp}", ephemeral=True)
     await user.send(f"Backup timestamp: {timestamp}", file=hist_file)
 
+### (change_sets)
+async def logged_exercise_autocomplete(interaction: discord.Interaction, current: str):
+    current = process_exercise_name(current)
+    matches = difflib.get_close_matches(current, [ f'{index} - {data["exercise_name"]}' for index, data in EXERCISE_TRACKER.workout.items()], n=25, cutoff=0.0)
+    return [app_commands.Choice(name=match, value=match) for match in matches]
+@bot.tree.command(name="change_sets", description="Change the sets for a completed exercise in the current workout",guild=guild)
+@app_commands.describe(name="Name (and instance) of exercise")
+@app_commands.autocomplete(name=logged_exercise_autocomplete)
+async def change_sets(interaction: discord.Interaction, name: str):
+    msg = EXERCISE_TRACKER.change_sets(name)
+    await interaction.response.send_message(msg, ephemeral=True)

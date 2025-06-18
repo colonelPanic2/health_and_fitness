@@ -11,20 +11,20 @@ def ci_lean_gain(body_weight):
     print(f'Calories:\n\tMIN: {values[0]}\n\tAVG: {average}\n\tMAX: {values[1]}')
     return average
 
-CURRENT_BODY_WEIGHT = 159.4#int(input('Current body weight (lbs): '))
+CURRENT_BODY_WEIGHT = 162#int(input('Current body weight (lbs): '))
 
 calorie_intake_avg = ci_lean_gain(CURRENT_BODY_WEIGHT)
 
-calories = calorie_intake_avg
-protein_grams = 231
-net_carbs_grams = 224#+38 # 38 grams of fiber
+calories = 2977#calorie_intake_avg
+protein_grams = 255
+net_carbs_grams = 235#+38 # 38 grams of fiber
 fat_grams_map = {
     'fat': {
-        'grams': 88,
+        'grams': 106,
         'percent': '',
     },
     'saturated': {
-        'grams': 27,
+        'grams': 32,
         'percent': '',
     },
     'polyunsaturated': {
