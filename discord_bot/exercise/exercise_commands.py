@@ -19,7 +19,7 @@ class NewExerciseModal(discord.ui.Modal):
     def __init__(self):
         super().__init__(title="New Exercise")
         self.name = discord.ui.TextInput(label="Exercise Name",placeholder="Enter the name of the exercise")
-        self.area = discord.ui.TextInput(label="Target Muscle Area",placeholder='BACK, CHEST, ARMS, LEGS, ABS, N/A')
+        self.area = discord.ui.TextInput(label="Target Muscle Area",placeholder='BACK, CHEST, ARMS, LEGS, ABS')
         self.units = discord.ui.TextInput(label="Units",placeholder="Leave empty for <N_REPS>x<N_POUNDS>",required=False)
         self.sets = discord.ui.TextInput(label="Sets",placeholder="Comma-separated sets for the new exercise being recorded")
         self.add_item(self.name)
@@ -47,9 +47,62 @@ class NewExerciseModal(discord.ui.Modal):
         else:
             await interaction.response.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"''',ephemeral=True)
 
+class RenameExerciseModal(discord.ui.Modal):
+    def __init__(self):
+        super().__init__(title="Rename Exercise")
+        self.name = discord.ui.TextInput(label="Exercise Name",placeholder="The new name of the existing exercise")
+        self.area = discord.ui.TextInput(label="Target Area",placeholder="BACK, CHEST, ARMS, LEGS, ABS",required=False)
+        # self.new_muscle_group = discord.ui.TextInput(label="Muscle groups",placeholder="The name(s) of the muscle group(s) being targetted in CSV format")
+        self.add_item(self.name)
+        self.add_item(self.area)
+        # self.add_item(self.new_muscle_group)
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        renamed_exercise = {
+            'exercise_name': process_exercise_name(self.name.value),
+            'area': str(self.area.value).strip().upper(),
+            # 'new_muscle_groups': [re.sub(r'__+','_',str(new_muscle_group).replace(' ','_').strip('_')) for new_muscle_group in str(self.new_muscle_group.value).split(',')]
+        }
+        check_new_exercise_name = re.findall(r'^[A-Z0-9_\-]+$',renamed_exercise['exercise_name'])
+        user_response_valid = (
+            (not EXERCISE_TRACKER.exercise_exists(renamed_exercise['exercise_name']))
+            and EXERCISE_TRACKER.area_exists(renamed_exercise['area'])
+            and (len(check_new_exercise_name) != 0 and check_new_exercise_name[0] == renamed_exercise['exercise_name'])
+        )
+        if user_response_valid:
+            msg = EXERCISE_TRACKER.rename_exercise(renamed_exercise)
+            if msg.startswith('Finished renaming exercise: '):
+                user_id = interaction.user.id
+                user = await bot.fetch_user(user_id)
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                zip_stream = EXERCISE_TRACKER._get_backup()
+                hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+                await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+            else:
+                msg = f'''{msg}\nexercise_name: "{renamed_exercise['exercise_name']}"\narea: "{renamed_exercise['area']}"'''
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name: "{renamed_exercise['exercise_name']}"\narea: "{renamed_exercise['area']}"''',ephemeral=True)
+
+async def exercise_autocomplete(interaction: discord.Interaction, current: str):
+    current = process_exercise_name(current)
+    matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.3)
+    return [app_commands.Choice(name=match, value=match) for match in matches]
+
+### (select_exercise) Choose an exercise to modify or review
+@bot.tree.command(name="select_exercise_rename", description="Pick an exercise from a list", guild=guild)
+@app_commands.describe(name="Name of the exercise")
+@app_commands.autocomplete(name=exercise_autocomplete)
+async def _select_exercise_rename(interaction: discord.Interaction, name: str):
+    msg = EXERCISE_TRACKER.select_exercise(name, select_mode="RENAME")
+    await interaction.response.send_message(msg, ephemeral=True)
+
+@bot.tree.command(name='rename_exercise',description="Let the user enter new values for the exercise currently being renamed",guild=guild)
+async def rename_exercise(interaction: discord.Interaction):
+    await interaction.response.send_modal(RenameExerciseModal())
 
 ### (add_new_exercise) Let the user add a new exercise to the list
-@bot.tree.command(name="newexercise", description="Define a new exercise and add the first entry", guild=guild)
+@bot.tree.command(name="new_exercise", description="Define a new exercise and add the first entry", guild=guild)
 async def new_exercise(interaction: discord.Interaction):
     await interaction.response.send_modal(NewExerciseModal())
 
@@ -60,10 +113,6 @@ async def start_workout(interaction: discord.Interaction):
     await interaction.response.send_message(msg, ephemeral=True)
 
 ### (get_exercise) Add a new entry for an existing exercise
-async def exercise_autocomplete(interaction: discord.Interaction, current: str):
-    current = process_exercise_name(current)
-    matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.3)
-    return [app_commands.Choice(name=match, value=match) for match in matches]
 @bot.tree.command(name="exercise", description="Pick an exercise from a list", guild=guild)
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)

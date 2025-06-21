@@ -308,6 +308,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return f'Finish logging the current workout, "{self.new_workout}", before starting a new workout'
         elif self.new_workout is not None or self.workout is not None:
             return f'ERROR: The bot is in an unexpected state\nworkout_index = {self.new_workout}\nworkout = {self.workout}'
+        # Variables for logging workouts
         self.log_workout = True
         self.workout_exercise_position = 0
         self.cache_current_exercise = None
@@ -315,7 +316,29 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.updating_sets = False
         self.new_workout = self.get_latest_workout() + 1
         self.workout = {}
+        # Variables for modifying source data
+        self.selected_exercise = None # {"name": "<EXERCISE_NAME>", "mode": "RENAME"}
         return f'Started logging new workout: {self.new_workout}'
+    def select_exercise(self, exercise_name, select_mode=None):
+        if not self.exercise_exists(exercise_name):
+            return f'''ERROR: Exercise, "{exercise_name}", doesn\'t exist'''
+        self.selected_exercise = {"name": exercise_name, "area": self.get_area(exercise_name), "mode": select_mode}
+        return f'''({select_mode}) Selected "{exercise_name}"'''
+    def rename_exercise(self, exercise):
+        if self.selected_exercise is None or self.selected_exercise.get('mode','') != "RENAME":
+            return f'No exercise selected for renaming. Choose an exercise with "/select_exercise_rename"'
+        selected_name, selected_area = self.selected_exercise['name'], self.selected_exercise['area']
+        name = exercise['exercise_name']
+        area = exercise['area'] if exercise['area'] != '' else selected_area
+        self.data.loc[self.data['exercise'] == selected_name, ['exercise', 'area', 'dw_mod_ts']] = [
+            name,
+            area,
+            pd.Timestamp.now()
+        ]
+        self.data.to_csv(self.path, index=False)
+        self.selected_exercise = None
+        self.refresh_data()
+        return f'Finished renaming exercise: ("{selected_name}", "{selected_area}") --> ("{name}", "{area}")'
     def get_exercise(self, exercise_name):
         exercise_name = process_exercise_name(exercise_name)#re.sub(r'__+','_',exercise_name.upper().strip().replace(' ','_'))
         if not self.exercise_exists(exercise_name):
@@ -478,6 +501,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.updating_sets = False
             self.new_workout = None
             self.workout = None
+            self.selected_exercise = None
             ### Reset the EXERCISE_HISTORY_CLS attributes to their default states
             self.refresh_data()
             return f'Bot state restored successfully'
@@ -511,290 +535,6 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.updating_sets = True
         old_sets = ", ".join([self.workout[self.workout_exercise_position]['stats'][i] for i in range(len(self.workout[self.workout_exercise_position]['stats']))])
         return f'Modifying sets for exercise "{exercise_index} - {exercise}"\nOld sets: {old_sets}'
-
-exercises_by_area = {
-    'LEGS': {
-        'SINGLE_LEG_PRESS': {
-            'metadata': {
-                'recommended_sets': 3,
-                'recommended_reps': 8,
-                'variations': {} # '<variation>': {'visual': '<link-or-image-ref>', 'muscle_groups': {'<muscle_group_1_name>': '<link-or-image-ref>', ...} }
-            }
-        },
-        'SINGLE_LEG_PRESS': {
-            'metadata': {
-                'recommended_sets': 3,
-                'recommended_reps': 8,
-                'variations': {} # '<variation>': {'visual': '<link-or-image-ref>', 'muscle_groups': {'<muscle_group_1_name>': '<link-or-image-ref>', ...} }
-            }
-        },
-    }
-}
-## NOTE: If no 'units' are provided, then the units are [<N_REPS>,<N_POUNDS>]
-# exercise_history = {
-#     'SINGLE_LEG_PRESS': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[8,40], [8,45], [8,50]], 'workout': 0, 'position': 1},
-#             1: {'stats': [[8,70], [8,75]], 'workout': 10, 'position': 5},
-#         }
-#     },
-#     'STANDING_CALF_RAISE': {
-#         'area': 'LEGS',
-#         'history': {
-# 			 0: {'stats': [[15,130], [15,120], [15,115]], 'workout': 0, 'position': 2},
-#              1: {'stats': [[15,110], [15,130], [15,140]], 'workout': 6, 'position': 2},
-#         }
-#     },
-#     'SEATED_LEG_CURL': {
-#         'area': 'LEGS',
-#         'history': {
-# 			 0: {'stats': [[12,160], [12,160], [12,160], [12,180]], 'workout': 0, 'position': 3},
-#              1: {'stats': [[12,180], [12,200], [12,200], [12,200]], 'workout': 5, 'position': 2},
-#              2: {'stats': [[12,200],[12,200],[12,220],[12,200]], 'workout': 6, 'position': 4},
-#         }
-#     },
-#     'KETTLEBELL_SQUAT': {
-#         'area': 'LEGS',
-#         'history': {
-# 			 0: {'stats': [[12,35], [12,50], [10,50]], 'workout': 0, 'position': 4},
-#         }
-#     },
-#     'PLANK': {
-#         'area': 'ABS',
-#         'units': 'seconds',
-#         'history': {
-# 			 0: {'stats': [60, 60], 'workout': 0, 'position': 5},
-#              1: {'stats': [60], 'workout': 2, 'position': 6}
-#         }
-#     },
-#     '6-IN_HOLD': {
-#         'area': 'ABS',
-#         'units': 'seconds',
-#         'history': {
-# 			 0: {'stats': [60, 60], 'workout': 0, 'position': 6},
-#         }
-#     },
-#     'INCLINED_BENCH_PRESS': {
-#         'area': 'CHEST',
-#         'history': {
-# 			 0: {'stats': [[8,105], [8,95], [8,95], [8,95]], 'workout': 1, 'position': 1},
-#              1: {'stats': [[8,95], [10,95], [8,100],[5,100]], 'workout': 3, 'position': 1},
-#         }
-#     },
-#     'LAT_PULLDOWN': {
-#         'area': 'BACK',
-#         'history': {
-# 			 0: {'stats': [[12,70], [12,80], [12,80], [12,85]], 'workout': 1, 'position': 2},
-#              1: {'stats': [[12,95],[12,105],[12,110]], 'workout': 4, 'position': 2},
-#              2: {'stats': [[12,90],[12,85],[12,85]], 'workout': 9, 'position': 4},
-#         }
-#     },
-#     'CLOSE_GRIP_EZ_BAR_CURL': {
-#         'area': 'ARMS',
-#         'history': {
-#             0: {'stats': [[12,50],[12,50],[12,50]], 'workout': 1, 'position': 3},
-#         }
-#     },
-#     'BARBELL_SHRUG': {
-#         'area': 'BACK',
-#         'history': {
-#             0: {'stats': [[15,70], [15,70], [15,60]], 'workout': 1, 'position': 4},
-#             1: {'stats': [[15,60],[15,80],[15,80]], 'workout': 4, 'position': 4},
-#             2: {'stats': [[15,80],[15,90],[15,100]], 'workout': 9, 'position': 3},
-#         }
-#     },
-#     'CHIN_UP_MACHINE': {
-#         'area': 'BACK',
-#         'history': {
-#             0: {'stats': [[10,80],[12,90],[12,90]], 'workout': 1, 'position': 5},
-#             1: {'stats': [[12,80],[12,85],[10,75]], 'workout': 9, 'position': 2},
-#         }
-#     },
-#     'BICEPS_CURL_MACHINE': {
-#         'area': 'ARMS',
-#         'history': {
-#             0: {'stats': [[12,80],[12,70],[12,70]], 'workout': 1, 'position': 6},
-#             1: {'stats': [[8,70],[12,60],[12,60]], 'workout': 8, 'position': 5},
-#         }
-#     },
-#     'LEG_EXTENSION': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[10,80],[10,90],[10,100],[10,120]], 'workout': 2, 'position': 1},
-#             1: {'stats': [[8,90],[8,110],[8,120],[8,135]], 'workout': 5, 'position': 1},
-#             2: {'stats': [[10,135],[10,140],[10,140],[8,140]],'workout': 6, 'position': 3},
-#             3: {'stats': [[10,135],[10,135],[10,135],[10,135]], 'workout': 10, 'position': 1},
-#         }
-#     },
-#     'STANDING_LEG_CURL': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[12,55],[12,55],[12,55]], 'workout': 2, 'position': 2},
-#         }
-#     },
-#     'DUMBBELL_BULGARIAN_SPLIT_SQUAT': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[12,30],[12,30]], 'workout': 2, 'position': 3},
-#             1: {'stats': [[12,35],[12,35]], 'workout': 10, 'position': 6},
-#         }
-#     },
-#     'DUMBBELL_GOBLET_SQUAT': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[15,30],[15,30],[15,30]], 'workout': 2, 'position': 4},
-#             1: {'stats': [[10,40],[15,40],[15,40]], 'workout': 10, 'position': 4},
-#         }
-#     },
-#     'PUSH_UPS': {
-#         'area': 'CHEST',
-#         'units': 'push_up',
-#         'history': {
-#             0: {'stats': [12, 12], 'workout': 2, 'position': 5},
-#             1: {'stats': [10,10,10],'workout': 7, 'position': 1},
-#         }
-#     },
-#     'DUMBBELL_OVERHEAD_TRICEP_EXTENSIONS': {
-#         'area': 'ARMS',
-#         'history': {
-#             0: {'stats': [[15,10], [15,10], [15,10]], 'workout': 3, 'position': 2},
-#             1: {'stats': [[10,15], [ 8,15], [12,10]], 'workout': 8, 'position': 1},
-#         }
-#     },
-#     'EZ_BAR_CURL': {
-#         'area': 'ARMS',
-#         'history': {
-#             0: {'stats': [[10,50], [8,50], [8,50]], 'workout': 3, 'position': 3},
-#             1: {'stats': [[12,50],[12,50],[12,50],[12,50]], 'workout': 8, 'position': 4},
-#         }
-#     },
-#     'INCLINED_DUMBBELL_BENCH_PRESS': {
-#         'area': 'CHEST',
-#         'history': {
-#             0: {'stats': [[12,60],[12,60],[12,60]], 'workout': 3, 'position': 4},
-#         }
-#     },
-#     'CABLE_CURLS': {
-#         'area': 'ARMS',
-#         'history': {
-#             0: {'stats': [[10,30],[10,30],[10,30]], 'workout': 3, 'position': 5},
-#         }
-#     },
-#     'SINGLE_ARM_LAT_PULLDOWN': {
-#         'area': 'BACK',
-#         'history': {
-#             0: {'stats': [[12,70],[12,80],[12,90],[8,90]], 'workout': 4, 'position': 1},
-#         }
-#     },
-#     'T-BAR_ROW': {
-#         'area': 'BACK',
-#         'history': {
-#             0: {'stats': [[8,45],[8,55],[8,57.5]], 'workout': 4, 'position': 3},
-#             1: {'stats': [[8,55],[8,60],[8,65]], 'workout': 9, 'position': 1},
-#         }
-#     },
-#     'DUMBBELL_LATERAL_RAISE': {
-#         'area': 'ARMS',
-#         'history': {
-#             0: {'stats': [[12,20],[12,20]], 'workout': 4, 'position': 5},
-#             1: {'stats': [[12,20],[12,20]], 'workout': 9, 'position': 5},
-#         }
-#     },
-#     'CABLE_FACE_PULL': {
-#         'area': 'BACK',
-#         'history': {
-#             0: {'stats': [[12,50],[12,50]], 'workout': 4, 'position': 6},
-#         }
-#     },
-#     "LEG_PRESS": {
-#         'area': "LEGS",
-#         'history': {
-#             0: {'stats': [[10,180],[10,200],[10,200]], 'workout': 5, 'position': 3},
-#             1: {'stats': [[12,90],[12,140],[12,180],[12,190]],'workout': 6, 'position': 1},
-#         }
-#     },
-#     'SEATED_CALF_EXTENSION': {
-#         'area': "LEGS",
-#         'history': {
-#             0: {'stats': [[15,135],[15,130],[15,135]], 'workout': 5, 'position': 4},
-#             1: {'stats': [[12,135],[12,135]], 'workout': 6, 'position': 6},
-#         }
-#     },
-#     'HIP_ABDUCTION': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[12,220],[12,220],[12,225]], 'workout': 5, 'position': 5},
-#         }
-#     },
-#     "SEATED_LEG_PRESS": {
-#         'area': "LEGS",
-#         'history': {
-#             0: {'stats': [[10,205],[12,210]], 'workout': 5, 'position': 6},
-#         }
-#     },
-#     'HIP_ADDUCTION': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[12,180],[15,190],[15,205]], 'workout': 6, 'position': 5},
-#         }
-#     },
-#     'INCLINED_CHEST_PRESS': {
-#         'area': 'CHEST',
-#         'history': {
-#             0: {'stats': [[10,85],[10,75],[10,65]], 'workout': 7, 'position': 2},
-#             1: {'stats': [[12,75],[8,75],[10,75]], 'workout': 8, 'position': 2},
-#         }
-#     },
-#     'CHEST_PRESS': {
-#         'area': 'CHEST',
-#         'history': {
-#             0: {'stats': [[10,75],[5,75],[5,65],[6,65],[4,55]], 'workout': 7, 'position': 3},
-#         }
-#     },
-#     'CHEST_PRESS_MACHINE': {
-#         'area': 'CHEST',
-#         'history': {
-#             0: {'stats': [[12,30],[12,20],[12,10]], 'workout': 7, 'position': 4}
-#         }
-#     },
-#     'PECTORAL_FLY': {
-#         'area': 'CHEST',
-#         'history': {
-#             0: {'stats': [[12,25],[12,25],[12,25],[12,30]], 'workout': 7, 'position': 5},
-#             1: {'stats': [[12,70],[12,70],[12,70]], 'workout': 8, 'position': 3},
-#         }
-#     },
-#     'COMPOUND_ROW_MACHINE': {
-#         'area': 'BACK',
-#         'variation_note': 'Iteration(s) [0] were done using the variation in which the palms are facing upwards at a 45-degree angle, and the subject pulls towards the waist',
-#         'history': {
-#             0: {'stats': [[15,100],[12,110],[12,105]], 'workout': 9, 'position': 6},
-#         }
-#     },
-#     'HACK_SQUAT': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[12,50],[12,90],[12,140]], 'workout': 10, 'position': 2},
-#         }
-#     },
-#     'SEATED_CALF_RAISE': {
-#         'area': 'LEGS',
-#         'history': {
-#             0: {'stats': [[15,30],[15,30],[15,30]], 'workout': 10, 'position': 3},
-#         }
-#     }
-# }
-# def exercise_history_to_csv():
-#     df_output = pd.DataFrame()
-#     for EXERCISE,data in exercise_history.items():
-#         units = data.get('units','')
-#         area = data['area']
-#         for instance,data2 in data['history'].items():
-#             for set_index, set in enumerate(data2['stats']):
-#                 df_tmp = pd.DataFrame({'exercise': [EXERCISE], 'area': [area], 'instance': [instance], 'workout': [data2['workout']], 'position': [data2['position']], 'set': [set_index], 'units': [units], 'data': [set_to_string(set,units)]})
-#                 df_output = pd.concat([df_output,df_tmp])
-#     return df_output.sort_values(by=PRIMARY_KEYS).reset_index(drop=True)
 
     
 
