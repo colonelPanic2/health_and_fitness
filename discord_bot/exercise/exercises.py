@@ -320,6 +320,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.workout = {}
         return f'Started logging new workout: {self.new_workout}'
     def select_exercise(self, exercise_name, select_mode=None):
+        exercise_name = process_exercise_name(exercise_name)
         if not self.exercise_exists(exercise_name):
             return f'''ERROR: Exercise, "{exercise_name}", doesn\'t exist'''
         self.selected_exercise = {"name": exercise_name, "area": self.get_area(exercise_name), "mode": select_mode}
