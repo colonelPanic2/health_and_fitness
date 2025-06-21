@@ -224,3 +224,8 @@ async def logged_exercise_autocomplete(interaction: discord.Interaction, current
 async def change_sets(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.change_sets(name)
     await interaction.response.send_message(msg, ephemeral=True)
+
+@bot.tree.command(name="show_selected", description="Show the currently selected exercises/features",guild=guild)
+async def show_selected(interaction: discord.Interaction):
+    msg = EXERCISE_TRACKER.show_selected()
+    await interaction.response.send_message(msg, ephemeral=True)

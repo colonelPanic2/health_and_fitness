@@ -293,6 +293,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.new_workout = None
         self.workout = None
         self.updating_sets = False
+        # Variables for modifying source data
+        self.selected_exercise = None # {"name": "<EXERCISE_NAME>", "mode": "RENAME"}
         self.partition_data()
     def cannot_perform_action(self):
         status = bool(
@@ -316,14 +318,16 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.updating_sets = False
         self.new_workout = self.get_latest_workout() + 1
         self.workout = {}
-        # Variables for modifying source data
-        self.selected_exercise = None # {"name": "<EXERCISE_NAME>", "mode": "RENAME"}
         return f'Started logging new workout: {self.new_workout}'
     def select_exercise(self, exercise_name, select_mode=None):
         if not self.exercise_exists(exercise_name):
             return f'''ERROR: Exercise, "{exercise_name}", doesn\'t exist'''
         self.selected_exercise = {"name": exercise_name, "area": self.get_area(exercise_name), "mode": select_mode}
         return f'''({select_mode}) Selected "{exercise_name}"'''
+    def show_selected(self):
+        if self.selected_exercise is None:
+            return f'No exercises have been selected yet. Run "/select_exercise_*" to select an exercise for a specific purpose'
+        return f'MODE: "{self.selected_exercise["mode"]}\nNAME: "{self.selected_exercise["name"]}"\nAREA: "{self.selected_exercise["area"]}"'
     def rename_exercise(self, exercise):
         if self.selected_exercise is None or self.selected_exercise.get('mode','') != "RENAME":
             return f'No exercise selected for renaming. Choose an exercise with "/select_exercise_rename"'
