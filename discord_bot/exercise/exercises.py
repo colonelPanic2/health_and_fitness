@@ -73,7 +73,7 @@ def sort_by_distances(input_str, str_list, get_top_k = None):
     df_distances['input_str'] = [input_str]*len(df_distances)
     return df_distances.head(get_top_k)
 def valid_data_format(units, set_entry):
-    return bool( (units == '' and re.match(r'^\d+x\d+$',set_entry)) or (units != '' and re.match(r'^\d+$',set_entry)) )
+    return bool( (units == '' and re.match(r'(^\d+x\d+(\.\d+){1})$',set_entry)) or (units != '' and re.match(r'^\d+$',set_entry)) )
 def process_exercise_name( exercise_name):
     return re.sub(r'__+','_',str(exercise_name).strip().upper().replace(' ','_')).strip('_')
 # SW-LT : Shoulder_width-legs_together, each variation gets 1/2 the reps
