@@ -77,12 +77,45 @@ class RenameExerciseModal(discord.ui.Modal):
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 zip_stream = EXERCISE_TRACKER._get_backup()
                 hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
-                await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+                await user.send(f'(RENAME "{self.name.value}" -> "{renamed_exercise["exercise_name"]}") Backup timestamp: {timestamp}', file=hist_file)
             else:
                 msg = f'''{msg}\nexercise_name: "{renamed_exercise['exercise_name']}"\narea: "{renamed_exercise['area']}"'''
             await interaction.followup.send(msg, ephemeral=True)
         else:
             await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name: "{renamed_exercise['exercise_name']}"\narea: "{renamed_exercise['area']}"''',ephemeral=True)
+
+class MergeExercisesModal(discord.ui.Modal):
+    def __init__(self):
+        super().__init__(title="Merge Exercises")
+        self.source = discord.ui.TextInput(label="Source Exercise",placeholder="The name of the exercise to be merged (all data will be moved from this exercise to the target exercise)")
+        self.target = discord.ui.TextInput(label="Target Exercise",placeholder="The name of the exercise to merge into (all data from the source exercise will be moved into this exercise)")
+        self.add_item(self.source)
+        self.add_item(self.target)
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        merge_exercises = {
+            'source': process_exercise_name(self.source.value),
+            'target': process_exercise_name(self.target.value)
+        }
+        user_response_valid = (
+            EXERCISE_TRACKER.exercise_exists(merge_exercises['source'])
+            and EXERCISE_TRACKER.exercise_exists(merge_exercises['target'])
+            and (merge_exercises['source'] != merge_exercises['target'])
+        )
+        if user_response_valid:
+            msg = EXERCISE_TRACKER.merge_name1_into_name2(name1=merge_exercises['source'], name2=merge_exercises['target'])
+            if msg.startswith('Successfully merged all data'):
+                user_id = interaction.user.id
+                user = await bot.fetch_user(user_id)
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                zip_stream = EXERCISE_TRACKER._get_backup()
+                hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+                await user.send(f'(MERGE "{self.source.value}" -> "{self.target.value}") Backup timestamp: {timestamp}', file=hist_file)
+            else:
+                msg = f'''{msg}\nsource: "{merge_exercises['source']}"\ntarget: "{merge_exercises['target']}"'''
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nsource: "{merge_exercises['source']}"\ntarget: "{merge_exercises['target']}"''',ephemeral=True)
 
 async def exercise_autocomplete(interaction: discord.Interaction, current: str):
     current = process_exercise_name(current)
@@ -97,9 +130,15 @@ async def _select_exercise_rename(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.select_exercise(name, select_mode="RENAME")
     await interaction.response.send_message(msg, ephemeral=True)
 
+# (rename exercise) Let the user enter new values for the exercise currently being renamed
 @bot.tree.command(name='rename_exercise',description="Let the user enter new values for the exercise currently being renamed",guild=guild)
 async def rename_exercise(interaction: discord.Interaction):
     await interaction.response.send_modal(RenameExerciseModal())
+
+# 
+@bot.tree.command(name='merge_exercises',description="Merge exercise 1 into exercise 2, maintaining chronological order",guild=guild)
+async def merge_exercises(interaction: discord.Interaction):
+    await interaction.response.send_modal(MergeExercisesModal())
 
 ### (add_new_exercise) Let the user add a new exercise to the list
 @bot.tree.command(name="new_exercise", description="Define a new exercise and add the first entry", guild=guild)

@@ -73,7 +73,20 @@ def sort_by_distances(input_str, str_list, get_top_k = None):
     df_distances['input_str'] = [input_str]*len(df_distances)
     return df_distances.head(get_top_k)
 def valid_data_format(units, set_entry):
-    return bool( (units == '' and re.match(r'(^\d+x\d+(\.\d+){1})$',set_entry)) or (units != '' and re.match(r'^\d+$',set_entry)) )
+    ### <N_REPS>x<N_POUNDS>
+    sets_x_weights_pattern = r'(\d+x\d+(\.\d+){1})'
+    sets_x_weights_match = bool(units == '' and re.match(rf'^{sets_x_weights_pattern}$',set_entry))
+    ### <N_REPS>
+    sets_pattern = r'(\d+)'
+    sets_match = bool(units != '' and re.match(rf'^{sets_pattern}$',set_entry))
+    ### <N_REPS>x<N_POUNDS>;<N_REPS>x<N_POUNDS>
+    supersets_x_weights_pattern = rf'^{sets_x_weights_pattern};{sets_x_weights_pattern}$'
+    supersets_x_weights_match = bool( units == '' and re.match(supersets_x_weights_pattern,set_entry))
+    ### <N_REPS>;<N_REPS>
+    supersets_pattern = rf'^{sets_pattern};{sets_pattern}$'
+    supersets_match = bool( units != '' and re.match(supersets_pattern,set_entry))
+    ### Any of the above patterns match
+    return bool( sets_x_weights_match or sets_match or supersets_x_weights_match or supersets_match )
 def process_exercise_name( exercise_name):
     return re.sub(r'__+','_',str(exercise_name).strip().upper().replace(' ','_')).strip('_')
 # SW-LT : Shoulder_width-legs_together, each variation gets 1/2 the reps
@@ -540,7 +553,27 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.updating_sets = True
         old_sets = ", ".join([self.workout[self.workout_exercise_position]['stats'][i] for i in range(len(self.workout[self.workout_exercise_position]['stats']))])
         return f'Modifying sets for exercise "{exercise_index} - {exercise}"\nOld sets: {old_sets}'
-
+    # Merge the data from name1 and name2 into name2 (only meant for the same exercise with different names)
+    def merge_name1_into_name2(self, name1, name2):
+        name1, name2 = process_exercise_name(name1), process_exercise_name(name2)
+        df_empty = pd.DataFrame(columns=self.primary_keys+['data','units','dw_mod_ts'])
+        df_name1 = self.data_partition.get(name1,df_empty)
+        df_name2 = self.data_partition.get(name2,df_empty)
+        if df_name1.empty:
+            return f'ERROR: No data found for exercise, "{name1}"'
+        if df_name2.empty:
+            return f'ERROR: No data found for exercise, "{name2}"'
+        units_name1 = df_name1['units'].drop_duplicates().tolist()[0]
+        units_name2 = df_name2['units'].drop_duplicates().tolist()[0]
+        if units_name1 != units_name2:
+            return f'ERROR: Cannot merge exercises with different units ("{units_name1}" != "{units_name2}")'
+        # Combine the dataframes
+        df_combined = pd.concat([df_name1, df_name2]).reset_index(drop=True)
+        # Assign new instance numbers by group (workout, position)
+        df_combined['instance'] = df_combined.sort_values(by=['workout', 'position']).groupby(['workout', 'position'], sort=False).ngroup()
+        df_combined['exercise'] = name2
+        self.refresh_data()
+        return f'Successfully merged all data from "{name1}" into "{name2}"'
     
 
 
