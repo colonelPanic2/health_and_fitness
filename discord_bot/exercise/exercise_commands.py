@@ -87,8 +87,8 @@ class RenameExerciseModal(discord.ui.Modal):
 class MergeExercisesModal(discord.ui.Modal):
     def __init__(self):
         super().__init__(title="Merge Exercises")
-        self.source = discord.ui.TextInput(label="Source Exercise",placeholder="The name of the exercise to be merged (all data will be moved from this exercise to the target exercise)")
-        self.target = discord.ui.TextInput(label="Target Exercise",placeholder="The name of the exercise to merge into (all data from the source exercise will be moved into this exercise)")
+        self.source = discord.ui.TextInput(label="Source Exercise",placeholder="The name of the exercise to be merged")
+        self.target = discord.ui.TextInput(label="Target Exercise",placeholder="The name of the exercise to merge into")
         self.add_item(self.source)
         self.add_item(self.target)
     async def on_submit(self, interaction: discord.Interaction):

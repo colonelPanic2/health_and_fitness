@@ -571,7 +571,9 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         df_combined = pd.concat([df_name1, df_name2]).reset_index(drop=True)
         # Assign new instance numbers by group (workout, position)
         df_combined['instance'] = df_combined.sort_values(by=['workout', 'position']).groupby(['workout', 'position'], sort=False).ngroup()
-        df_combined['exercise'] = name2
+        df_combined['exercise'] = [name2] * len(df_combined)
+        self.data = pd.concat([self.data.query('exercise != @name1 and exercise != @name2'), df_combined]).sort_values(by=['workout', 'position', 'set']).reset_index(drop=True)[self.primary_keys + ['data','units','dw_mod_ts']]
+        self.data.to_csv(self.path, index=False)
         self.refresh_data()
         return f'Successfully merged all data from "{name1}" into "{name2}"'
     
