@@ -74,7 +74,7 @@ def sort_by_distances(input_str, str_list, get_top_k = None):
     return df_distances.head(get_top_k)
 def valid_data_format(units, set_entry):
     ### <N_REPS>x<N_POUNDS>
-    sets_x_weights_pattern = r'(\d+x\d+(\.\d+){1})'
+    sets_x_weights_pattern = r'(\d+x\d+(\.\d+){0,1})'
     sets_x_weights_match = bool(units == '' and re.match(rf'^{sets_x_weights_pattern}$',set_entry))
     ### <N_REPS>
     sets_pattern = r'(\d+)'
