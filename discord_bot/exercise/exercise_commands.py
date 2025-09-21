@@ -33,7 +33,7 @@ class NewExerciseModal(discord.ui.Modal):
             'units': str(self.units.value).strip(),
             'sets': re.sub(r'(\d+)[xX](\d+)', r'\1x\2', str(self.sets.value).replace(' ','')).split(',')
         }
-        check_new_exercise_name = re.findall(r'^[A-Z0-9_\-]+$',new_exercise['exercise_name'])
+        check_new_exercise_name = re.findall(r'^[A-Z0-9_\-;]+$',new_exercise['exercise_name'])
         user_response_valid = (
                 (not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))
                 and EXERCISE_TRACKER.area_exists(new_exercise['area']))\
@@ -45,7 +45,7 @@ class NewExerciseModal(discord.ui.Modal):
             msg = msg if msg.startswith('Added new') else f'''{msg}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
             await interaction.response.send_message(msg, ephemeral=True)
         else:
-            await interaction.response.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"''',ephemeral=True)
+            await interaction.response.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
 
 class RenameExerciseModal(discord.ui.Modal):
     def __init__(self):
@@ -82,7 +82,7 @@ class RenameExerciseModal(discord.ui.Modal):
                 msg = f'''{msg}\nexercise_name: "{renamed_exercise['exercise_name']}"\narea: "{renamed_exercise['area']}"'''
             await interaction.followup.send(msg, ephemeral=True)
         else:
-            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name: "{renamed_exercise['exercise_name']}"\narea: "{renamed_exercise['area']}"''',ephemeral=True)
+            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(renamed_exercise['exercise_name']))}): "{renamed_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(renamed_exercise['area'])}): "{renamed_exercise['area']}"''',ephemeral=True)
 
 class MergeExercisesModal(discord.ui.Modal):
     def __init__(self):
@@ -115,7 +115,7 @@ class MergeExercisesModal(discord.ui.Modal):
                 msg = f'''{msg}\nsource: "{merge_exercises['source']}"\ntarget: "{merge_exercises['target']}"'''
             await interaction.followup.send(msg, ephemeral=True)
         else:
-            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nsource: "{merge_exercises['source']}"\ntarget: "{merge_exercises['target']}"''',ephemeral=True)
+            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nsource ({EXERCISE_TRACKER.exercise_exists(merge_exercises['source'])}): "{merge_exercises['source']}"\ntarget ({EXERCISE_TRACKER.exercise_exists(merge_exercises['target'])}): "{merge_exercises['target']}"''',ephemeral=True)
 
 async def exercise_autocomplete(interaction: discord.Interaction, current: str):
     current = process_exercise_name(current)

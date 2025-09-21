@@ -7,11 +7,33 @@ import matplotlib.pyplot as plt
 import io
 from discord import File
 import zipfile
+from itertools import product
 
 EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
 EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + EXERCISE_RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 
+
+sets_x_weights_pattern = r'(\d+x\d+(\.\d+){0,1})'
+sets_pattern = r'(\d+)'
+patterns = [sets_x_weights_pattern, sets_pattern]
+unique_permutations = set()
+for i in range(1, len(patterns) + 1):
+    for prod in product(patterns, repeat=i):
+        permutation = ';'.join([rf"{p}" for p in prod])
+        unique_permutations.add(permutation)
+def find_set_match(sets_string: str) -> bool:
+    target_pattern = None
+    for set in sets_string.split(','):
+        set = set.strip()
+        for pattern in unique_permutations:
+            full_pattern = rf'^{pattern}$'
+            if re.match(full_pattern, set):
+                if target_pattern is None:
+                    target_pattern = pattern
+                elif target_pattern != pattern:
+                    return None
+    return target_pattern
 
 def render_table_image(df: pd.DataFrame) -> io.BytesIO:
     fig, ax = plt.subplots(figsize=(len(df.columns) * 2, len(df) * 0.5 + 1))
@@ -72,21 +94,15 @@ def sort_by_distances(input_str, str_list, get_top_k = None):
     df_distances = pd.DataFrame({'str_element': [str_distance[0] for str_distance in get_distances], 'distance': [str_distance[1] for str_distance in get_distances]})
     df_distances['input_str'] = [input_str]*len(df_distances)
     return df_distances.head(get_top_k)
+
 def valid_data_format(units, set_entry):
-    ### <N_REPS>x<N_POUNDS>
-    sets_x_weights_pattern = r'(\d+x\d+(\.\d+){0,1})'
-    sets_x_weights_match = bool(units == '' and re.match(rf'^{sets_x_weights_pattern}$',set_entry))
-    ### <N_REPS>
-    sets_pattern = r'(\d+)'
-    sets_match = bool(units != '' and re.match(rf'^{sets_pattern}$',set_entry))
-    ### <N_REPS>x<N_POUNDS>;<N_REPS>x<N_POUNDS>
-    supersets_x_weights_pattern = rf'^{sets_x_weights_pattern};{sets_x_weights_pattern}$'
-    supersets_x_weights_match = bool( units == '' and re.match(supersets_x_weights_pattern,set_entry))
-    ### <N_REPS>;<N_REPS>
-    supersets_pattern = rf'^{sets_pattern};{sets_pattern}$'
-    supersets_match = bool( units != '' and re.match(supersets_pattern,set_entry))
-    ### Any of the above patterns match
-    return bool( sets_x_weights_match or sets_match or supersets_x_weights_match or supersets_match )
+    pattern_match = find_set_match(set_entry)
+    if pattern_match is None:
+        return False
+    elif len(pattern_match.split(';')) != len(set_entry.split(';')):
+        return False
+    units_and_pattern_match = all([bool(bool(unit.strip() == '') if pattern_match.split(';')[i].strip() == sets_x_weights_pattern else True) for i,unit in enumerate(units.split(';'))])
+    return bool(pattern_match and units_and_pattern_match)
 def process_exercise_name( exercise_name):
     return re.sub(r'__+','_',str(exercise_name).strip().upper().replace(' ','_')).strip('_')
 # SW-LT : Shoulder_width-legs_together, each variation gets 1/2 the reps
@@ -289,7 +305,7 @@ class EXERCISE_HISTORY_CLS():
     def exercise_exists(self, exercise_name):
         return exercise_name in self.exercises
     def area_exists(self, area):
-        return area in self.areas
+        return all([a in self.areas for a in re.sub(r'[\s/;]+', ' ', area).strip().upper().split(' ')])
     def unit_exists(self, unit):
         return unit in self.units
     def adding_exercise(self, exercise_name):
