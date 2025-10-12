@@ -14,27 +14,34 @@ EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win'
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 
 
-sets_x_weights_pattern = r'(\d+x\d+(\.\d+){0,1})'
-sets_pattern = r'(\d+)'
+sets_x_weights_pattern = r'\d+x\d+(\.\d+){0,1}'
+sets_pattern = r'\d+'
 patterns = [sets_x_weights_pattern, sets_pattern]
-unique_permutations = set()
-for i in range(1, len(patterns) + 1):
-    for prod in product(patterns, repeat=i):
-        permutation = ';'.join([rf"{p}" for p in prod])
-        unique_permutations.add(permutation)
-def find_set_match(sets_string: str) -> bool:
-    target_pattern = None
-    for set in sets_string.split(','):
-        set = set.strip()
-        for pattern in unique_permutations:
-            full_pattern = rf'^{pattern}$'
-            if re.match(full_pattern, set):
-                if target_pattern is None:
-                    target_pattern = pattern
-                elif target_pattern != pattern:
-                    return None
-    return target_pattern
-
+unique_permutations = set(patterns)
+def find_set_match(units: str, sets_string: str) -> bool:
+    sets_list = re.sub(r'\s+', '', sets_string).split(',')
+    units_list = re.sub(r'\s+', '', units).split(';')
+    target_patterns = {}
+    for set_combination in sets_list:
+        set_combination_list = set_combination.split(';')
+        if len(units_list) != len(set_combination_list):
+            return False
+        for i,set in enumerate(set_combination_list):
+            for pattern in unique_permutations:
+                full_pattern = rf'^{pattern}$'
+                pattern_match = re.match(full_pattern, set)
+                if pattern_match:
+                    if pattern_match.group(0) != set:
+                        print(f'WARNING: Partial match for "{set}" with pattern "{pattern}": "{pattern_match.group(0)}" != "{set}"')
+                        return False
+                    default_units_check = bool(units_list[i].strip() == '' if pattern == sets_x_weights_pattern else True)
+                    if target_patterns.get(set_combination,True) is not False and default_units_check:
+                        target_patterns[set_combination] = True
+                    elif target_patterns.get(set_combination) != pattern:
+                        return False
+            if target_patterns.get(set_combination,False) is False:
+                return False
+    return all([target_patterns.get(set_combination,False) for set_combination in sets_list])
 def render_table_image(df: pd.DataFrame) -> io.BytesIO:
     fig, ax = plt.subplots(figsize=(len(df.columns) * 2, len(df) * 0.5 + 1))
     ax.axis('off')
@@ -94,15 +101,17 @@ def sort_by_distances(input_str, str_list, get_top_k = None):
     df_distances = pd.DataFrame({'str_element': [str_distance[0] for str_distance in get_distances], 'distance': [str_distance[1] for str_distance in get_distances]})
     df_distances['input_str'] = [input_str]*len(df_distances)
     return df_distances.head(get_top_k)
-
 def valid_data_format(units, set_entry):
-    pattern_match = find_set_match(set_entry)
-    if pattern_match is None:
-        return False
-    elif len(pattern_match.split(';')) != len(set_entry.split(';')):
-        return False
-    units_and_pattern_match = all([bool(bool(unit.strip() == '') if pattern_match.split(';')[i].strip() == sets_x_weights_pattern else True) for i,unit in enumerate(units.split(';'))])
-    return bool(pattern_match and units_and_pattern_match)
+    pattern_match = find_set_match(units, set_entry)
+    return pattern_match
+    # if pattern_match is None:
+    #     return False
+    # elif len(units.split(';')) != len(set_entry.split(';')):
+    #     print(f'{pattern_match}\t\t{set_entry}')
+    #     return False
+    # units_and_pattern_match = all([bool(bool(unit.strip() == '') if pattern_match.split(';')[i].strip() == sets_x_weights_pattern else True) for i,unit in enumerate(units.split(';'))])
+    # units_and_pattern_match = all([bool(bool(unit.strip() == '') if re.match(sets_x_weights_pattern, set_entry.split(';')[i]) else True) for i,unit in enumerate(units.split(';'))])
+    # return bool(pattern_match and units_and_pattern_match)
 def process_exercise_name( exercise_name):
     return re.sub(r'__+','_',str(exercise_name).strip().upper().replace(' ','_')).strip('_')
 # SW-LT : Shoulder_width-legs_together, each variation gets 1/2 the reps
