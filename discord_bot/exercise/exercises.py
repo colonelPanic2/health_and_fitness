@@ -12,36 +12,71 @@ from itertools import product
 EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
 EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + EXERCISE_RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
+isnumeric = lambda x: bool(re.match(r'^\d+(\.\d+){0,1}$', str(x)))
 
-
-sets_x_weights_pattern = r'\d+x\d+(\.\d+){0,1}'
-sets_pattern = r'\d+'
-patterns = [sets_x_weights_pattern, sets_pattern]
+# sets_x_weights_pattern = r'\d+\:\d+(\.\d+){0,1}'
+# sets_pattern = r'\d+'
+sets_x_weights_pattern = r'^\d+\:\d+(\.\d+){0,1}$'
+sets_pattern = r'^((?:(\d+(?:\.\d+)|(\d+))?(?:\:((\d+(?:\.\d+))|(\d+))?){0,1}+)(?:;|$))+'
+# patterns = [sets_x_weights_pattern, sets_pattern]
+patterns = [sets_pattern]
 unique_permutations = set(patterns)
 def find_set_match(units: str, sets_string: str) -> bool:
     sets_list = re.sub(r'\s+', '', sets_string).split(',')
     units_list = re.sub(r'\s+', '', units).split(';')
     target_patterns = {}
+    n_expected_values_running = None
     for set_combination in sets_list:
         set_combination_list = set_combination.split(';')
         if len(units_list) != len(set_combination_list):
             return False
+        n_expected_values = None
         for i,set in enumerate(set_combination_list):
+            if ':' in set.lower():
+                values = set.lower().split(':')
+                if any([not isnumeric(value) for value in values]):
+                    # If any of the provided set values are not numeric (excluding whitespace), then the entry isn't valid
+                    return False
+                if n_expected_values is None:
+                    n_expected_values = len(values)
+                elif n_expected_values != len(values):
+                    # If the number of values varies from set to set, then the entry isn't valid
+                    return False
+            elif n_expected_values is not None and n_expected_values != 1:
+                # If the number of values varies from set to set, then the entry isn't valid
+                return False
+            else:
+                n_expected_values = 1
+            if n_expected_values_running is None:
+                n_expected_values_running = n_expected_values
+            elif n_expected_values_running != n_expected_values:
+                # There is a mismatch in the number of expected values across entries
+                return False
+            if n_expected_values != len(units_list[i].split(':')):
+                # The provided units don't match the expected number of values
+                return False
+            pattern_match = re.match(sets_pattern, set)
+            default_match = re.match(sets_x_weights_pattern, set)
             for pattern in unique_permutations:
-                full_pattern = rf'^{pattern}$'
-                pattern_match = re.match(full_pattern, set)
+                # full_pattern = rf'^{pattern}$'
+                # pattern_match = re.match(full_pattern, set)
+                pattern_match = re.match(pattern, set)
                 if pattern_match:
                     if pattern_match.group(0) != set:
+                        # If there was only a partial match for the pattern, then the entry isn't valid. REVIEW THE LOGS
                         print(f'WARNING: Partial match for "{set}" with pattern "{pattern}": "{pattern_match.group(0)}" != "{set}"')
                         return False
-                    default_units_check = bool(units_list[i].strip() == '' if pattern == sets_x_weights_pattern else True)
-                    if target_patterns.get(set_combination,True) is not False and default_units_check:
-                        target_patterns[set_combination] = True
+                    default_units_check = bool(units_list[i].strip() == '' if (default_match is not None and default_match.group(0) == set) else True)
+                    if target_patterns.get(set_combination,pattern) == pattern and default_units_check:
+                        target_patterns[set_combination] = pattern
                     elif target_patterns.get(set_combination) != pattern:
+                        # If there is already a conflicting pattern assigned to this entry, then the entry isn't valid
                         return False
-            if target_patterns.get(set_combination,False) is False:
+            if target_patterns.get(set_combination) is None:
+                # If no pattern was matched for this entry, then the entry isn't valid
                 return False
-    return all([target_patterns.get(set_combination,False) for set_combination in sets_list])
+    # return all([target_patterns.get(set_combination) is not None for set_combination in sets_list])
+    return True
 def render_table_image(df: pd.DataFrame) -> io.BytesIO:
     fig, ax = plt.subplots(figsize=(len(df.columns) * 2, len(df) * 0.5 + 1))
     ax.axis('off')
@@ -65,7 +100,7 @@ def set_to_string(set,units):
         return set
 def string_to_set(set,units):
     if units == '':
-        return [{set.split("x")[0].strip()}, set.split("x")[1].strip()]
+        return [{set.split(":")[0].strip()}, set.split(":")[1].strip()]
     else:
         return set
 def stringify_stats(history_stats, units):
@@ -320,6 +355,7 @@ class EXERCISE_HISTORY_CLS():
     def adding_exercise(self, exercise_name):
         return exercise_name in self.new_exercises
 
+
 instance_data_cols = ['exercise','instance','position','set','data']
 class ExerciseTracker(EXERCISE_HISTORY_CLS):
     def __init__(self, PATH):
@@ -331,12 +367,13 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.new_workout = None
         self.workout = None
         self.updating_sets = False
+        self.updating = {'status': False}
         # Variables for modifying source data
         self.selected_exercise = None # {"name": "<EXERCISE_NAME>", "mode": "RENAME"}
         self.partition_data()
     def cannot_perform_action(self):
         status = bool(
-            self.log_workout == False 
+            (self.log_workout == False and self.updating['status'] == False)
             or self.workout_exercise_position is None 
             or self.current_exercise is None 
             or self.new_workout is None 
@@ -414,11 +451,11 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
     def get_sets(self, sets):
         if self.cannot_perform_action():
             if self.log_workout == False:
-                return f'Not currently logging a workout. Run "/start_workout"'
+                return {'msg': f'Not currently logging a workout. Run "/start_workout"'}
             elif self.current_exercise is None or self.workout_exercise_position is None:
-                return f'Not currently logging an exercise. Run "/exercise" or "/newexercise"'
+                return {'msg': f'Not currently logging an exercise. Run "/exercise" or "/newexercise"'}
             else:
-                return f'UNEXPECTED INPUT DETECTED'
+                return {'msg': f'UNEXPECTED INPUT DETECTED'}
         sets = re.sub(r'(\d+)[xX](\d+)', r'\1x\2', sets.replace(' ',''))
         sets_list = sets.split(',')
         sets_dict = {}
@@ -429,32 +466,85 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             else:
                 sets_dict[i] = set
         if msg != '':
-            return msg
+            return {'msg': msg}
         else:
             msg = f'({self.workout_exercise_position+1}) "{self.current_exercise}" - {", ".join(sets_list)}'
         self.workout[self.workout_exercise_position] = {'exercise_name': self.current_exercise, 'stats': sets_dict}
+        if self.updating['status']:
+            update_workout = self.updating.get('workout_index')
+            update_position = self.updating.get('position_index')
+            update_type = self.updating.get('update_type')
+            if update_workout is None or update_position is None or update_type is None:
+                self.updating = {'status': False}
+                self.exercise = None
+                self.cache_current_exercise = None
+                self.workout_exercise_position = None
+                self.updating_sets = False
+                return {'msg': f'ERROR: Invalid update state detected\n\tupdate_workout = {update_workout}\n\tupdate_position = {update_position}\n\tupdate_type = {update_type}'}
+            if update_type == "INSERT":
+                df_update = self.data.query('workout == @update_workout')
+                df_update['position'] = df_update['position'].apply(lambda x: x+1 if x >= update_position else x)
+                units = self.get_units(self.current_exercise)
+                area  = self.get_area(self.current_exercise)
+                if self.adding_exercise(self.current_exercise):
+                    units = self.new_exercises[self.current_exercise]['units']
+                    area  = self.new_exercises[self.current_exercise]['area']
+                df_new = pd.DataFrame({'exercise': [self.current_exercise], 'area': [area], 'instance': [0], 'workout': [update_workout], 'position': [update_position], 'units': [units], 'sets_data': [[[i,set_data] for i,set_data in self.workout[self.workout_exercise_position]['stats'].items()]], 'dw_mod_ts': pd.Timestamp.now()}).explode('sets_data').reset_index(drop=True)
+                df_new['set'] = df_new['sets_data'].apply(lambda x: int(x[0]))
+                df_new['data'] = df_new['sets_data'].apply(lambda x: str(x[1]))
+                self.data = pd.concat([self.data.query('workout != @update_workout or position != @update_position'),df_update,df_new]).reset_index(drop=True)[['exercise','area','instance','workout','position','set','data','units','dw_mod_ts']]
+                self.data.to_csv(self.path,index=False)
+                reset_msg = self._reset_state()
+                if reset_msg.startswith('ERROR'):
+                    return {'msg': reset_msg, 'update_type': update_type, 'workout_index': update_workout, 'position_index': update_position}
+                else:
+                    return {'msg': f'Finished updating exercise "{self.current_exercise}" in workout {update_workout} at position {update_position}', 'update_type': update_type, 'workout_index': update_workout, 'position_index': update_position}
         self.workout_exercise_position = len(self.workout)#+= 1
         self.current_exercise = self.cache_current_exercise if self.updating_sets else None
         self.updating_sets = False
-        return msg
+        return {'msg': msg}
     def add_new_exercise(self, exercise):
         self.cache_current_exercise = self.current_exercise
         self.current_exercise = exercise['exercise_name']
         if self.cannot_perform_action():
             self.current_exercise = None
-            if self.log_workout == False:
-                return f'Not currently logging a workout. Run "/start_workout"'
+            if (self.log_workout == False and self.updating['status'] == False):#self.log_workout == False:
+                return {'msg': f'Not currently logging a workout. Run "/start_workout"'}
             else:
-                return f'UNEXPECTED INPUT DETECTED'
+                return {'msg': f'UNEXPECTED INPUT DETECTED'}
         self.new_exercises[self.current_exercise] = {'units': exercise['units'], 'area': exercise['area']}
         # self.exercises.append(exercise['exercise_name'])
         exercise_log = {'exercise_name': exercise['exercise_name'], 'stats': {i: set_ for i,set_ in enumerate(exercise['sets'])}}
         self.workout[self.workout_exercise_position] = exercise_log
+        if self.updating['status']:
+            update_workout = self.updating.get('workout_index')
+            update_position = self.updating.get('position_index')
+            update_type = self.updating.get('update_type')
+            if update_workout is None or update_position is None or update_type is None:
+                self.updating = {'status': False}
+                self.exercise = None
+                self.cache_current_exercise = None
+                self.workout_exercise_position = None
+                self.updating_sets = False
+                return {'msg': f'ERROR: Invalid update state detected\n\tupdate_workout = {update_workout}\n\tupdate_position = {update_position}\n\tupdate_type = {update_type}'}
+            if update_type == "INSERT":
+                df_update = self.data.query('workout == @update_workout')
+                df_update['position'] = df_update['position'].apply(lambda x: x+1 if x >= update_position else x) 
+                df_new = pd.DataFrame({'exercise': [exercise['exercise_name']], 'area': [exercise['area']], 'instance': [0], 'workout': [update_workout], 'position': [update_position], 'units': [exercise['units']], 'sets_data': [[[i,set_data] for i,set_data in exercise_log['stats'].items()]], 'dw_mod_ts': pd.Timestamp.now()}).explode('sets_data').reset_index(drop=True)
+                df_new['set'] = df_new['sets_data'].apply(lambda x: int(x[0]))
+                df_new['data'] = df_new['sets_data'].apply(lambda x: str(x[1]))
+                self.data = pd.concat([self.data.query('workout != @update_workout'),df_update,df_new]).reset_index(drop=True)[['exercise','area','instance','workout','position','set','data','units','dw_mod_ts']]
+                self.data.to_csv(self.path,index=False)
+                reset_msg = self._reset_state()
+                if reset_msg.startswith('ERROR'):
+                    return {'msg': reset_msg, 'update_type': update_type, 'workout_index': update_workout, 'position_index': update_position}
+                else:
+                    return {'msg': f'Finished inserting new exercise "{exercise["exercise_name"]}" into workout {update_workout} at position {update_position}', 'update_type': update_type, 'workout_index': update_workout, 'position_index': update_position}
         self.workout_exercise_position = len(self.workout)#+= 1
         self.cache_current_exercise = None#self.current_exercise
         self.current_exercise=None
         self.updating_sets = False
-        return f'''Added new exercise:\n"({self.workout_exercise_position}) {exercise['exercise_name']}" - {", ".join(exercise["sets"])}'''
+        return {'msg': f'''Added new exercise:\n"({self.workout_exercise_position}) {exercise['exercise_name']}" - {", ".join(exercise["sets"])}'''}
     def get_workout(self):
         # Defined for the definition of "add_workout" in exercises.py
         return self.workout
@@ -545,11 +635,12 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.new_workout = None
             self.workout = None
             self.selected_exercise = None
+            self.updating = {'status': False}
             ### Reset the EXERCISE_HISTORY_CLS attributes to their default states
             self.refresh_data()
             return f'Bot state restored successfully'
         except Exception as e:
-            return f"FATAL ERROR: COULDN'T RESTORE THE BOT TO IT'S DEFAULT STATE."
+            return f"ERROR: COULDN'T RESTORE THE BOT TO IT'S DEFAULT STATE.\n{str(e)}"
     def _get_backup(self):
         csv_buffer = io.StringIO()
         self.data = pd.read_csv(self.path,keep_default_na=False)
@@ -601,9 +692,38 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.data.to_csv(self.path, index=False)
         self.refresh_data()
         return f'Successfully merged all data from "{name1}" into "{name2}"'
-    
-
-
+    def get_logged_workout(self, workout_index):
+        df_workout = self.data.query('workout == @workout_index')
+        if df_workout.empty:
+            return f'ERROR: No data found for workout "{workout_index}"'
+        # Count rows per (position, exercise) -> number of sets logged for that exercise at that position
+        df_agg = df_workout.groupby(['position', 'exercise']).size().reset_index(name='n_sets').sort_values('position').reset_index(drop=True)
+        table = File(fp=render_table_image(df_agg), filename=f'{workout_index}.png')
+        return table
+        # return render_table_image(df_agg)
+    def update_logged_workout(self, data):
+        if self.log_workout:
+            return f'ERROR: Cannot update logged workouts while logging a new workout. Finish logging the current workout first.'
+        update_type = data['update_type']
+        workout_index = data['workout_index']
+        position_index = data['position_index']
+        df_workout = self.data.query('workout == @workout_index')
+        if df_workout.empty:
+            return f'ERROR: No data found for workout "{workout_index}"'
+        # elif position_index not in df_workout['position'].tolist():
+        #     return f'ERROR: No data found for workout "{workout_index}" at position "{position_index}"'
+        if update_type == 'INSERT':
+            max_position_plus_1 = int(df_workout['position'].max()) + 1
+            if position_index >= max_position_plus_1 or position_index < 0:
+                return f'ERROR: position_index "{position_index}" out of range for workout of size {max_position_plus_1}'
+            self.updating = {'status': True, 'workout_index': workout_index, 'position_index': position_index, 'update_type': update_type}
+            # df_workout['position'] = df_workout['position'].apply(lambda x: x+1 if x >= position_index else x)
+            self.cache_current_exercise = self.cache_current_exercise if self.updating_sets else self.current_exercise
+            self.current_exercise = None
+            self.workout_exercise_position = position_index
+            self.updating_sets = False
+            return f'Inserting new exercise at position "{position_index}" for workout "{workout_index}". Run "/exercise" or "/newexercise" to add the exercise'
+        return f'ERROR: Unsupported update_type "{update_type}"'
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         # wsl python3 Fitness/exercises.py WORKOUT

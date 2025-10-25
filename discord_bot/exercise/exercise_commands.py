@@ -42,8 +42,16 @@ class NewExerciseModal(discord.ui.Modal):
             )
         if user_response_valid:
             msg = EXERCISE_TRACKER.add_new_exercise(new_exercise)
-            msg = msg if msg.startswith('Added new') else f'''{msg}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
-            await interaction.response.send_message(msg, ephemeral=True)
+            if msg['msg'].startswith('Finished renaming exercise: '):
+                user_id = interaction.user.id
+                user = await bot.fetch_user(user_id)
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                zip_stream = EXERCISE_TRACKER._get_backup()
+                hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+                await user.send(f'(UPDATE ({msg["update_type"]}) workout_index: "{msg["workout_index"]} position_index: "{msg["position_index"]}") Backup timestamp: {timestamp}', file=hist_file)
+            else:
+                msg = msg['msg'] if msg['msg'].startswith('Added new') else f'''{msg['msg']}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
+                await interaction.response.send_message(msg, ephemeral=True)
         else:
             await interaction.response.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
 
@@ -117,6 +125,27 @@ class MergeExercisesModal(discord.ui.Modal):
         else:
             await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nsource ({EXERCISE_TRACKER.exercise_exists(merge_exercises['source'])}): "{merge_exercises['source']}"\ntarget ({EXERCISE_TRACKER.exercise_exists(merge_exercises['target'])}): "{merge_exercises['target']}"''',ephemeral=True)
 
+class UpdateWorkoutModal(discord.ui.Modal):
+    def __init__(self):
+        super().__init__(title="Update Workout")
+        self.update_type = discord.ui.TextInput(label="Update Type",placeholder="INSERT or DELETE")
+        self.workout_index = discord.ui.TextInput(label="Workout Index",placeholder="The index of the workout to update")
+        self.position_index = discord.ui.TextInput(label="Position Index",placeholder="The position index of the exercise to update")
+        self.add_item(self.update_type)
+        self.add_item(self.workout_index)
+        self.add_item(self.position_index)
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        data = {
+            'update_type': str(self.update_type.value).strip().upper(),
+            'workout_index': str(self.workout_index.value).strip(),
+            'position_index': str(self.position_index.value).strip()
+        }
+        workout_index = int(self.workout_index.value)
+        position_index = int(self.position_index.value)
+        msg = EXERCISE_TRACKER.update_logged_workout(workout_index, position_index)
+        await interaction.followup.send(msg, ephemeral=True)
+
 async def exercise_autocomplete(interaction: discord.Interaction, current: str):
     current = process_exercise_name(current)
     matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.3)
@@ -145,6 +174,21 @@ async def merge_exercises(interaction: discord.Interaction):
 async def new_exercise(interaction: discord.Interaction):
     await interaction.response.send_modal(NewExerciseModal())
 
+### (update_logged_workout) Let the user update an exercise position in a previously logged workout (insert or delete, cannot perform while logging a new workout)
+@bot.tree.command(name='update_logged_workout',description="Update an exercise position in a previously logged workout (insert or delete)",guild=guild)
+async def update_workout(interaction: discord.Interaction):
+    await interaction.response.send_modal(UpdateWorkoutModal())
+
+### (get_logged_workout) View the exercises in a previously logged workout
+@bot.tree.command(name="view_logged_workout", description="View the exercises in a previously logged workout", guild=guild)
+@app_commands.describe(workout_index="Index of the logged workout to view")
+async def view_logged_workout(interaction: discord.Interaction, workout_index: int):
+    msg = EXERCISE_TRACKER.get_logged_workout(workout_index)
+    if type(msg) == str:
+        await interaction.response.send_message(msg, ephemeral=True)
+    else:
+        await interaction.response.send_message(f'Showing workout "{workout_index}"', file=msg, ephemeral=True)
+
 ### (start_workout)
 @bot.tree.command(name="start_workout", description="Start logging a new workout", guild=guild)
 async def start_workout(interaction: discord.Interaction):
@@ -158,14 +202,14 @@ async def start_workout(interaction: discord.Interaction):
 async def exercise(interaction: discord.Interaction, name: str):
     msg = EXERCISE_TRACKER.get_exercise(name)
     # await interaction.response.send_message(msg, ephemeral=True)
-    if msg.startswith('Finished logging new workout'):
+    if msg.startswith('Finished'):
         user_id = interaction.user.id
         user = await bot.fetch_user(user_id)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         zip_stream = EXERCISE_TRACKER._get_backup()
         hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
         await interaction.response.send_message(msg, ephemeral=True)
-        await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+        # await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
     elif msg.startswith(f'ERROR:'):
         await interaction.response.send_message(msg, ephemeral=True)
     else:
@@ -179,7 +223,16 @@ async def exercise(interaction: discord.Interaction, name: str):
 @bot.tree.command(name="sets", description="Add a comma-separated list of the sets for the current exercise", guild=guild)
 async def get_sets(interaction: discord.Interaction, sets: str):
     msg = EXERCISE_TRACKER.get_sets(sets)
-    await interaction.response.send_message(msg, ephemeral=True)
+    if msg['msg'].startswith('Finished updating exercise'):
+        user_id = interaction.user.id
+        user = await bot.fetch_user(user_id)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        zip_stream = EXERCISE_TRACKER._get_backup()
+        hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+        await interaction.response.send_message(msg['msg'], ephemeral=True)
+        await user.send(f'(UPDATE ({msg["update_type"]}) workout_index: "{msg["workout_index"]} position_index: "{msg["position_index"]}") Backup timestamp: {timestamp}', file=hist_file)
+    else:
+        await interaction.response.send_message(msg['msg'], ephemeral=True)
 
 ### (end_workout)
 @bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE", guild=guild)
