@@ -8,6 +8,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'b
 from exercise_tracker_bot_MDATA import *
 import datetime
 
+#### NOTE: Set to True to allow the bot to send checkpoint/backup files to the user after certain operations
+####       Set to False when debugging/testing to avoid spamming DMs with backup files
+ENABLE_CHECKPOINTS= False
+
+
 guild = discord.Object(id=GUILD_ID)
 intents = discord.Intents.default()
 intents.message_content = True
@@ -27,11 +32,12 @@ class NewExerciseModal(discord.ui.Modal):
         self.add_item(self.units)
         self.add_item(self.sets)
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         new_exercise = {
             'exercise_name': process_exercise_name(self.name.value),#re.sub(r'__+','_',str(self.name.value).strip().upper().replace(' ','_')),
             'area': str(self.area.value).strip().upper(),
             'units': str(self.units.value).strip(),
-            'sets': re.sub(r'(\d+)[xX](\d+)', r'\1x\2', str(self.sets.value).replace(' ','')).split(',')
+            'sets': str(self.sets.value).replace(' ','').split(',')#re.sub(r'(\d+)[xX](\d+)', r'\1x\2', str(self.sets.value).replace(' ','')).split(',')
         }
         check_new_exercise_name = re.findall(r'^[A-Z0-9_\-;]+$',new_exercise['exercise_name'])
         user_response_valid = (
@@ -42,18 +48,18 @@ class NewExerciseModal(discord.ui.Modal):
             )
         if user_response_valid:
             msg = EXERCISE_TRACKER.add_new_exercise(new_exercise)
-            if msg['msg'].startswith('Finished renaming exercise: '):
+            if ENABLE_CHECKPOINTS and msg['msg'].startswith('Finished'):
                 user_id = interaction.user.id
                 user = await bot.fetch_user(user_id)
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 zip_stream = EXERCISE_TRACKER._get_backup()
                 hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
-                await user.send(f'(UPDATE ({msg["update_type"]}) workout_index: "{msg["workout_index"]} position_index: "{msg["position_index"]}") Backup timestamp: {timestamp}', file=hist_file)
+                await user.send(f'(UPDATE ({msg["update_type"]}) workout_index: "{msg["workout_index"]}" position_index: "{msg["position_index"]}") Backup timestamp: {timestamp}', file=hist_file)
             else:
                 msg = msg['msg'] if msg['msg'].startswith('Added new') else f'''{msg['msg']}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
-                await interaction.response.send_message(msg, ephemeral=True)
+                await interaction.followup.send_message(msg, ephemeral=True)
         else:
-            await interaction.response.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
+            await interaction.followup.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
 
 class RenameExerciseModal(discord.ui.Modal):
     def __init__(self):
@@ -79,7 +85,7 @@ class RenameExerciseModal(discord.ui.Modal):
         )
         if user_response_valid:
             msg = EXERCISE_TRACKER.rename_exercise(renamed_exercise)
-            if msg.startswith('Finished renaming exercise: '):
+            if ENABLE_CHECKPOINTS and msg.startswith('Finished renaming exercise: '):
                 user_id = interaction.user.id
                 user = await bot.fetch_user(user_id)
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -112,7 +118,7 @@ class MergeExercisesModal(discord.ui.Modal):
         )
         if user_response_valid:
             msg = EXERCISE_TRACKER.merge_name1_into_name2(name1=merge_exercises['source'], name2=merge_exercises['target'])
-            if msg.startswith('Successfully merged all data'):
+            if ENABLE_CHECKPOINTS and msg.startswith('Successfully merged all data'):
                 user_id = interaction.user.id
                 user = await bot.fetch_user(user_id)
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -128,6 +134,7 @@ class MergeExercisesModal(discord.ui.Modal):
 class UpdateWorkoutModal(discord.ui.Modal):
     def __init__(self):
         super().__init__(title="Update Workout")
+        ## NOTE: Modals only allow text inputs, so this won't work using a dropdown/select menu for update_type
         self.update_type = discord.ui.TextInput(label="Update Type",placeholder="INSERT or DELETE")
         self.workout_index = discord.ui.TextInput(label="Workout Index",placeholder="The index of the workout to update")
         self.position_index = discord.ui.TextInput(label="Position Index",placeholder="The position index of the exercise to update")
@@ -138,17 +145,23 @@ class UpdateWorkoutModal(discord.ui.Modal):
         await interaction.response.defer()
         data = {
             'update_type': str(self.update_type.value).strip().upper(),
-            'workout_index': str(self.workout_index.value).strip(),
-            'position_index': str(self.position_index.value).strip()
+            'workout_index': int(str(self.workout_index.value).strip()),
+            'position_index': int(str(self.position_index.value).strip())
         }
-        workout_index = int(self.workout_index.value)
-        position_index = int(self.position_index.value)
-        msg = EXERCISE_TRACKER.update_logged_workout(workout_index, position_index)
-        await interaction.followup.send(msg, ephemeral=True)
+        msg = EXERCISE_TRACKER.update_logged_workout(data)
+        if ENABLE_CHECKPOINTS and msg.startswith('Successfully deleted exercise at position'):
+            user_id = interaction.user.id
+            user = await bot.fetch_user(user_id)
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            zip_stream = EXERCISE_TRACKER._get_backup()
+            hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+            await user.send(f'(UPDATE ({data["update_type"]}) workout_index: "{data["workout_index"]}" position_index: "{data["position_index"]}") Backup timestamp: {timestamp}', file=hist_file)
+        else:
+            await interaction.followup.send(msg, ephemeral=True)
 
 async def exercise_autocomplete(interaction: discord.Interaction, current: str):
-    current = process_exercise_name(current)
-    matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=25, cutoff=0.3)
+    current = process_exercise_name(str("" if current is None else current))
+    matches = difflib.get_close_matches(current, EXERCISE_TRACKER.exercises, n=10, cutoff=0.3)#n=25, cutoff=0.3)
     return [app_commands.Choice(name=match, value=match) for match in matches]
 
 ### (select_exercise) Choose an exercise to modify or review
@@ -200,17 +213,9 @@ async def start_workout(interaction: discord.Interaction):
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
+    name = str("" if name is None else name)
     msg = EXERCISE_TRACKER.get_exercise(name)
-    # await interaction.response.send_message(msg, ephemeral=True)
-    if msg.startswith('Finished'):
-        user_id = interaction.user.id
-        user = await bot.fetch_user(user_id)
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        zip_stream = EXERCISE_TRACKER._get_backup()
-        hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
-        await interaction.response.send_message(msg, ephemeral=True)
-        # await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
-    elif msg.startswith(f'ERROR:'):
+    if msg.startswith(f'ERROR:'):
         await interaction.response.send_message(msg, ephemeral=True)
     else:
         msg2 = EXERCISE_TRACKER.get_latest_instance_data(name)
@@ -223,14 +228,14 @@ async def exercise(interaction: discord.Interaction, name: str):
 @bot.tree.command(name="sets", description="Add a comma-separated list of the sets for the current exercise", guild=guild)
 async def get_sets(interaction: discord.Interaction, sets: str):
     msg = EXERCISE_TRACKER.get_sets(sets)
-    if msg['msg'].startswith('Finished updating exercise'):
+    if ENABLE_CHECKPOINTS and msg.get('update_type') is not None and not msg['msg'].startswith('ERROR'):
         user_id = interaction.user.id
         user = await bot.fetch_user(user_id)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         zip_stream = EXERCISE_TRACKER._get_backup()
         hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
         await interaction.response.send_message(msg['msg'], ephemeral=True)
-        await user.send(f'(UPDATE ({msg["update_type"]}) workout_index: "{msg["workout_index"]} position_index: "{msg["position_index"]}") Backup timestamp: {timestamp}', file=hist_file)
+        await user.send(f'(UPDATE ({msg["update_type"]}) workout_index: "{msg["workout_index"]} position_index: "{msg["position_index"]}")\n{msg["msg"]}\n Backup timestamp: {timestamp}', file=hist_file)
     else:
         await interaction.response.send_message(msg['msg'], ephemeral=True)
 
@@ -240,13 +245,15 @@ async def end_workout(interaction: discord.Interaction):
     await interaction.response.defer()
     msg = EXERCISE_TRACKER.end_workout()
     await interaction.followup.send(msg, ephemeral=True)
-    if msg.startswith('Finished logging new workout'):
+    if ENABLE_CHECKPOINTS and msg.startswith('Finished logging new workout'):
         user_id = interaction.user.id
         user = await bot.fetch_user(user_id)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         zip_stream = EXERCISE_TRACKER._get_backup()
         hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
         await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+    else:
+        await interaction.followup.send(msg, ephemeral=True)
     
 
 
@@ -272,6 +279,10 @@ async def show_workout(interaction: discord.Interaction):
 @bot.tree.command(name="last_workout_date", description="Get the timestamp of the most recent workout", guild=guild)
 async def last_workout_date(interaction: discord.Interaction):
     msg = EXERCISE_TRACKER.get_last_workout_date()
+    if type(msg) == str:
+        await interaction.response.send_message(msg, ephemeral=True)
+    else:
+        await interaction.response.send_message('Last workout date:', file=msg, ephemeral=True)
     await interaction.response.send_message(msg,ephemeral=True)
 
 ### (get_latest_instance_data)
@@ -296,14 +307,17 @@ async def reset_state(interaction: discord.Interaction):
 ### (_get_backup)
 @bot.tree.command(name='backup', description='Save the history as a zipped CSV file',guild=guild)
 async def send_backup(interaction: discord.Interaction):
-    await interaction.response.defer()
-    user_id = interaction.user.id
-    user = await bot.fetch_user(user_id)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    zip_stream = EXERCISE_TRACKER._get_backup()
-    hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
-    await interaction.followup.send(f"Backup timestamp: {timestamp}", ephemeral=True)
-    await user.send(f"Backup timestamp: {timestamp}", file=hist_file)
+    if ENABLE_CHECKPOINTS:
+        await interaction.response.defer()
+        user_id = interaction.user.id
+        user = await bot.fetch_user(user_id)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        zip_stream = EXERCISE_TRACKER._get_backup()
+        hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
+        await interaction.followup.send(f"Backup timestamp: {timestamp}", ephemeral=True)
+        await user.send(f"Backup timestamp: {timestamp}", file=hist_file)
+    else:
+        await interaction.response.send_message("❌ Checkpoint/backup functionality is disabled.", ephemeral=True)
 
 ### (change_sets)
 async def logged_exercise_autocomplete(interaction: discord.Interaction, current: str):
