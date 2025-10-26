@@ -761,7 +761,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         positions = list(set(df_workout['position'].tolist()))
         if update_type == 'INSERT':
             max_position_plus_1 = int(df_workout['position'].max()) + 1
-            if position_index > max_position_plus_1 or position_index < 0:
+            if position_index > max_position_plus_1 or position_index < 1:
                 return f'ERROR: position_index "{position_index}" out of range for workout of size {max_position_plus_1}'
             self.updating = {'status': True, 'workout_index': workout_index, 'position_index': position_index, 'update_type': update_type}
             # df_workout['position'] = df_workout['position'].apply(lambda x: x+1 if x >= position_index else x)
