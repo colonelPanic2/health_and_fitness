@@ -283,7 +283,7 @@ async def last_workout_date(interaction: discord.Interaction):
         await interaction.response.send_message(msg, ephemeral=True)
     else:
         await interaction.response.send_message('Last workout date:', file=msg, ephemeral=True)
-    await interaction.response.send_message(msg,ephemeral=True)
+    # await interaction.response.send_message(msg,ephemeral=True)
 
 ### (get_latest_instance_data)
 @bot.tree.command(name="exercise_hist", description="Get the last 1-3 instances of the given workout", guild=guild)
