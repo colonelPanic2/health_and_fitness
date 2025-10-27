@@ -57,9 +57,9 @@ class NewExerciseModal(discord.ui.Modal):
                 await user.send(f'(UPDATE ({msg["update_type"]}) workout_index: "{msg["workout_index"]}" position_index: "{msg["position_index"]}") Backup timestamp: {timestamp}', file=hist_file)
             else:
                 msg = msg['msg'] if msg['msg'].startswith('Added new') else f'''{msg['msg']}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
-                await interaction.followup.send_message(msg, ephemeral=True)
+                await interaction.followup.send(msg, ephemeral=True)
         else:
-            await interaction.followup.send_message(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
+            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
 
 class RenameExerciseModal(discord.ui.Modal):
     def __init__(self):
