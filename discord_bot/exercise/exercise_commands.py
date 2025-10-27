@@ -10,7 +10,7 @@ import datetime
 
 #### NOTE: Set to True to allow the bot to send checkpoint/backup files to the user after certain operations
 ####       Set to False when debugging/testing to avoid spamming DMs with backup files
-ENABLE_CHECKPOINTS= False
+ENABLE_CHECKPOINTS= True
 
 
 guild = discord.Object(id=GUILD_ID)
