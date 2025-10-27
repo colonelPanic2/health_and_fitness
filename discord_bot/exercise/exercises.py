@@ -9,10 +9,14 @@ from discord import File
 import zipfile
 from itertools import product
 
+# EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history_sandbox.csv'
 EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
 EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + EXERCISE_RELATIVE_PATH
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 isnumeric = lambda x: bool(re.match(r'^\d+(\.\d+){0,1}$', str(x)))
+
+SELECT_COLS = ['exercise','area','instance','workout','position','set','data','units','exercise_start_ts','exercise_end_ts','workout_start_ts','workout_end_ts','dw_mod_ts']
+instance_data_cols = ['exercise','instance','position','set','data']
 
 import warnings
 # Ignoring this warning as the "returning-a-view-versus-a-copy" behavior doesn't impact the correctness of the code here (as of 10/26/25)
@@ -337,14 +341,27 @@ class EXERCISE_HISTORY_CLS():
         new_workout_idx = latest_workout_idx + 1
         df_workout = pd.DataFrame()
         for position_idx in range(1,len(workout)+1):
-            exercise_name = workout[position_idx-1]['exercise_name']
+            exercise_data = workout[position_idx-1]
+            exercise_name = exercise_data['exercise_name']
+            exercise_start_ts = exercise_data.get('exercise_start_ts')
+            exercise_end_ts = exercise_data.get('exercise_end_ts')
             new_instance  = self.get_latest_instance(exercise_name) + 1
             units         = self.get_units(exercise_name)
             area          = self.get_area(exercise_name)
             if self.adding_exercise(exercise_name):
                 units = self.new_exercises[exercise_name]['units']
                 area  = self.new_exercises[exercise_name]['area']
-            df_tmp = pd.DataFrame({'exercise': [exercise_name], 'area': [area], 'instance': [new_instance], 'workout': [new_workout_idx], 'position': [position_idx], 'units': [units], 'sets_data': [[[i,set_data] for i,set_data in workout[position_idx-1]['stats'].items()]]})
+            df_tmp = pd.DataFrame({
+                'exercise': [exercise_name], 
+                'area': [area], 
+                'instance': [new_instance], 
+                'workout': [new_workout_idx], 
+                'position': [position_idx], 
+                'units': [units], 
+                'sets_data': [[[i,set_data] for i,set_data in workout[position_idx-1]['stats'].items()]],
+                'exercise_start_ts': [exercise_start_ts],
+                'exercise_end_ts': [exercise_end_ts]
+            })
             df_tmp = df_tmp.explode('sets_data').reset_index(drop=True)
             df_tmp['set'] = df_tmp['sets_data'].apply(lambda x: int(x[0]))
             df_tmp['data'] = df_tmp['sets_data'].apply(lambda x: str(x[1]))
@@ -353,7 +370,9 @@ class EXERCISE_HISTORY_CLS():
         if 'dw_mod_ts' not in self.data.columns:
             self.data['dw_mod_ts'] = None
         df_workout['dw_mod_ts'] = pd.Timestamp.now()
-        df_workout = pd.concat([self.data,df_workout]).reset_index(drop=True)[['exercise','area','instance','workout','position','set','data','units','dw_mod_ts']]
+        df_workout['workout_start_ts'] = [self.workout_start_ts]*len(df_workout)
+        df_workout['workout_end_ts'] = [pd.Timestamp.now()]*len(df_workout)
+        df_workout = pd.concat([self.data,df_workout]).sort_values(by=['workout','position','set']).reset_index(drop=True)[SELECT_COLS]
         df_workout.to_csv(self.path,index=False)
         self.new_exercises = {}
         return 0
@@ -381,7 +400,8 @@ class EXERCISE_HISTORY_CLS():
         return exercise_name in self.new_exercises
 
 
-instance_data_cols = ['exercise','instance','position','set','data']
+
+
 class ExerciseTracker(EXERCISE_HISTORY_CLS):
     def __init__(self, PATH):
         super().__init__(PATH)
@@ -393,6 +413,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.workout = None
         self.updating_sets = False
         self.updating = {'status': False}
+        self.current_exercise_start_ts = None
+        self.workout_start_ts = None
         # Variables for modifying source data
         self.selected_exercise = None # {"name": "<EXERCISE_NAME>", "mode": "RENAME"}
         self.partition_data()
@@ -421,6 +443,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.updating_sets = False
         self.new_workout = self.get_latest_workout() + 1
         self.workout = {}
+        self.workout_start_ts = pd.Timestamp.now()
         return f'Started logging new workout: {self.new_workout}'
     def select_exercise(self, exercise_name, select_mode=None):
         exercise_name = process_exercise_name(exercise_name)
@@ -475,6 +498,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         self.updating_sets = False
         self.cache_current_exercise = None#self.current_exercise
         self.current_exercise = exercise_name
+        self.current_exercise_start_ts = pd.Timestamp.now()
         units = self.get_units(exercise_name).strip(' ')
         units = str('<N_REPS>:<N_POUNDS>"' if units == '' else units)
         return f'Now logging sets for "{exercise_name}"\nunits: "{units}".\nRun "/sets" to log results'
@@ -500,7 +524,12 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return {'msg': msg}
         else:
             msg = f'({self.workout_exercise_position+1}) "{self.current_exercise}" - {", ".join(sets_list)}'
-        self.workout[self.workout_exercise_position] = {'exercise_name': self.current_exercise, 'stats': sets_dict}
+        self.workout[self.workout_exercise_position] = {
+                'exercise_name': self.current_exercise, 
+                'stats': sets_dict, 
+                'exercise_start_ts': self.current_exercise_start_ts, 
+                'exercise_end_ts': pd.Timestamp.now(),
+            }
         if self.updating['status']:
             update_workout = self.updating.get('workout_index')
             update_position = self.updating.get('position_index')
@@ -540,6 +569,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
                     return {'msg': f'({self.workout_exercise_position}) "{self.current_exercise}" - {", ".join(sets_list)}', 'update_type': update_type, 'workout_index': update_workout, 'position_index': update_position}
         self.workout_exercise_position = len(self.workout)#+= 1
         self.current_exercise = self.cache_current_exercise if self.updating_sets else None
+        self.current_exercise_start_ts = None
         self.updating_sets = False
         return {'msg': msg}
     def add_new_exercise(self, exercise):
@@ -574,7 +604,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
                 df_new['set'] = df_new['sets_data'].apply(lambda x: int(x[0]))
                 df_new['data'] = df_new['sets_data'].apply(lambda x: str(x[1]))
                 # Merge the new data into the existing dataset after accounting for the position shift (instances don't shift since it's a new exercise)
-                self.data = pd.concat([self.data.query('workout != @update_workout'),df_update,df_new]).reset_index(drop=True)[['exercise','area','instance','workout','position','set','data','units','dw_mod_ts']]
+                self.data = pd.concat([self.data.query('workout != @update_workout'),df_update,df_new]).reset_index(drop=True)[SELECT_COLS]#[['exercise','area','instance','workout','position','set','data','units','dw_mod_ts']]
                 self.data.to_csv(self.path,index=False)
                 reset_msg = self._reset_state()
                 if reset_msg.startswith('ERROR'):
@@ -635,7 +665,14 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return f'No exercises logged for workout {self.new_workout}'
         elif self.workout is None or self.workout == {}:
             return f'WORKOUT_{self.new_workout} = {{}}\nCURRENT_EXERCISE = "{self.current_exercise}"'
-        return f'WORKOUT_{self.new_workout} = {json.dumps(self.workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
+        timestamps = ['exercise_start_ts','exercise_end_ts','workout_start_ts','workout_end_ts']
+        workout = self.workout.copy()
+        for index,data in self.workout.items():
+            for ts in timestamps:
+                if ts in data:
+                    workout[index][ts] = str(data[ts])
+        # return f'WORKOUT_{self.new_workout} = {json.dumps(self.workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
+        return f'WORKOUT_{self.new_workout} = {json.dumps(workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
     def get_last_workout_date(self):
         last_workout_index = self.get_latest_workout()
         df = self.data.query('workout == @last_workout_index')[['workout','dw_mod_ts']].head(1)
@@ -670,6 +707,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         #     return f"```\n{table}\n```"
         table = File(fp=render_table_image(df), filename=f'{exercise}.png')
         return table
+    ### NOTE: ANY PROPERTIES DEFINED IN ANY FUNCTIONS OF ExerciseTracker MUST BE RESET IN THE _reset_state FUNCTION ###
     def _reset_state(self):
         try:
             ### Reset the ExerciseTracker attributes to their default states
@@ -682,6 +720,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.workout = None
             self.selected_exercise = None
             self.updating = {'status': False}
+            self.current_exercise_start_ts = None
+            self.workout_start_ts = None
             ### Reset the EXERCISE_HISTORY_CLS attributes to their default states
             self.refresh_data()
             return f'Bot state restored successfully'
@@ -734,7 +774,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         # Assign new instance numbers by group (workout, position)
         df_combined['instance'] = df_combined.sort_values(by=['workout', 'position']).groupby(['workout', 'position'], sort=False).ngroup()
         df_combined['exercise'] = [name2] * len(df_combined)
-        self.data = pd.concat([self.data.query('exercise != @name1 and exercise != @name2'), df_combined]).sort_values(by=['workout', 'position', 'set']).reset_index(drop=True)[self.primary_keys + ['data','units','dw_mod_ts']]
+        self.data = pd.concat([self.data.query('exercise != @name1 and exercise != @name2'), df_combined]).sort_values(by=['workout', 'position', 'set']).reset_index(drop=True)[SELECT_COLS]#[self.primary_keys + ['data','units','dw_mod_ts']]
         self.data.to_csv(self.path, index=False)
         self.refresh_data()
         return f'Successfully merged all data from "{name1}" into "{name2}"'
@@ -786,7 +826,16 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             # Shift the positions of remaining exercises
             df_updated['position'] = df_updated['position'].apply(lambda x: x-1 if x > position_index else x)
             df_updated['instance'] = df_updated.apply(lambda x: x['instance'] if (x['exercise'] != exercise or x['position'] < position_index) else (x['instance'] - 1 if (x['exercise'] == exercise and x['position'] >= position_index) else x['instance']), axis=1)
-            self.data = pd.concat([self.data.query('workout != @workout_index'), df_updated]).reset_index(drop=True)[self.primary_keys + ['data','units','dw_mod_ts']]
+            deleted_exercise_start_ts = df_deleted['exercise_start_ts'].min()
+            deleted_exercise_end_ts = df_deleted['exercise_end_ts'].max()
+            deleted_exercise_time_delta = deleted_exercise_end_ts - deleted_exercise_start_ts
+            df_updated['exercise_start_ts'] = df_updated.apply(lambda x: x['exercise_start_ts'] if (pd.isna(deleted_exercise_time_delta) or pd.isna(x['exercise_start_ts']) or x['position'] < position_index) else x['exercise_start_ts'] - deleted_exercise_time_delta, axis=1)
+            df_updated['exercise_end_ts'] = df_updated.apply(lambda x: x['exercise_end_ts'] if (pd.isna(deleted_exercise_time_delta) or pd.isna(x['exercise_end_ts']) or x['position'] < position_index) else x['exercise_end_ts'] - deleted_exercise_time_delta, axis=1)
+            max_exercise_end_ts = df_updated['exercise_end_ts'].max()
+            df_updated['workout_start_ts'] = df_updated['workout_start_ts'].apply(lambda x: max_exercise_end_ts if pd.notna(max_exercise_end_ts) and pd.notna(x) and x > max_exercise_end_ts else x)#[max_exercise_end_ts if pd.notna(max_exercise_end_ts) else deleted_exercise_start_ts]*len(df_updated)
+            df_updated['workout_end_ts'] = df_updated['workout_end_ts'].apply(lambda x: max_exercise_end_ts if pd.notna(max_exercise_end_ts) and pd.notna(x) and x > max_exercise_end_ts else x)#[max_exercise_end_ts if pd.notna(max_exercise_end_ts) else deleted_exercise_end_ts]*len(df_updated)
+            df_updated
+            self.data = pd.concat([self.data.query('workout != @workout_index'), df_updated]).reset_index(drop=True)[SELECT_COLS]#[self.primary_keys + ['data','units','dw_mod_ts']]
             self.data.to_csv(self.path, index=False)
             self.refresh_data()
             return f'Successfully deleted exercise at position "{position_index}" from workout "{workout_index}"'

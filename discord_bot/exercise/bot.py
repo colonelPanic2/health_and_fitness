@@ -1,7 +1,7 @@
 from exercise_commands import *
 from schedule_commands import *
 
-
+# NOTE: Timestamps are in the local timezone of the user running the bot
 @bot.event
 async def on_ready():
     await bot.tree.sync(guild=guild)
