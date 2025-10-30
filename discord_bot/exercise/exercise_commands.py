@@ -8,9 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'b
 from exercise_tracker_bot_MDATA import *
 import datetime
 
-#### NOTE: Set to True to allow the bot to send checkpoint/backup files to the user after certain operations
-####       Set to False when debugging/testing to avoid spamming DMs with backup files
-ENABLE_CHECKPOINTS= True
+
 
 
 guild = discord.Object(id=GUILD_ID)
