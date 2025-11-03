@@ -108,6 +108,14 @@ def find_set_match(units: str, sets_string: str) -> bool:
             # print(f'Checkpoint 5: target_patterns = {target_patterns}')
     # return all([target_patterns.get(set_combination) is not None for set_combination in sets_list])
     return True
+def get_duration_string(duration):
+    total_seconds = int(duration.total_seconds())
+    sign = '-' if total_seconds < 0 else ''
+    total_seconds = abs(total_seconds)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return f"{sign}{hours:02d}:{minutes:02d}:{seconds:02d}"
 def render_table_image(df: pd.DataFrame) -> io.BytesIO:
     fig, ax = plt.subplots(figsize=(len(df.columns) * 2, len(df) * 0.5 + 1))
     ax.axis('off')
@@ -634,13 +642,17 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.updating_sets = False
             self.new_workout = None
             self.workout = None
-            return f'ABORT: Stopped logging exercise "{self.new_workout}" without saving'
+            return {'msg': f'ABORT: Stopped logging workout "{self.new_workout}" without saving'}
         if self.log_workout == False or self.workout is None or self.new_workout is None:
-            return f'Not currently logging a workout. Run "/start_workout"'
+            return {'msg': f'Not currently logging a workout. Run "/start_workout"'}
         self.add_workout()
         new_workout = self.new_workout
         _ = self._reset_state()
-        return f'Finished logging new workout: {new_workout}\nGood job!'
+        output = {
+            'msg': f'Finished logging new workout: {new_workout}\nDuration: {self.get_workout_duration(new_workout)}\nGood job!',
+            'table': self.get_logged_workout(new_workout).get('table')
+        }
+        return output
     def abort_workout(self):
         if self.new_workout is None:
             return f'Not currently logging a workout. Run "/start_workout"'
@@ -697,7 +709,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         if not self.exercise_exists(exercise):
             return f"""ERROR: Exercise "{exercise}" doesn't exist"""
         latest_instance_index = int(float(self.get_latest_instance(exercise)))
-        n = 4
+        n = 3
         top_n_range = list(range(max(0,latest_instance_index-(n-1)),latest_instance_index+1))
         # Format the DataFrame as a code block for Discord
         df = self.data_partition.get(exercise,pd.DataFrame(instance_data_cols)).query('instance in @top_n_range')[instance_data_cols]
@@ -787,11 +799,12 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
     def get_logged_workout(self, workout_index):
         df_workout = self.data.query('workout == @workout_index')
         if df_workout.empty:
-            return f'ERROR: No data found for workout "{workout_index}"'
+            return {'msg': f'ERROR: No data found for workout "{workout_index}"'}
         # Count rows per (position, exercise) -> number of sets logged for that exercise at that position
         df_agg = df_workout.groupby(['position', 'exercise']).size().reset_index(name='n_sets').sort_values('position').reset_index(drop=True)
         table = File(fp=render_table_image(df_agg), filename=f'{workout_index}.png')
-        return table
+        output = {'msg': f'Showing workout "{workout_index}"\nDuration: {self.get_workout_duration(workout_index)}', 'table': table}
+        return output
         # return render_table_image(df_agg)
     def update_logged_workout(self, data):
         if self.log_workout:
@@ -855,6 +868,20 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             self.refresh_data()
             return f'Successfully deleted exercise at position "{position_index}" from workout "{workout_index}"'
         return f'ERROR: Unsupported update_type "{update_type}"'
+    def get_workout_duration(self, workout_index):
+        df_workout = self.data.query('workout == @workout_index')
+        if df_workout.empty:
+            return f'ERROR: No data found for workout "{workout_index}"'
+        workout_start_ts = pd.to_datetime(df_workout['workout_start_ts'], errors='coerce').min()
+        workout_end_ts = pd.to_datetime(df_workout['workout_end_ts'], errors='coerce').max()
+        if pd.isna(workout_start_ts) or pd.isna(workout_end_ts):
+            return f'ERROR: Incomplete timestamp data for workout "{workout_index}"'
+        duration = workout_end_ts - workout_start_ts
+        return get_duration_string(duration)
+    
+
+
+
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         # wsl python3 Fitness/exercises.py WORKOUT

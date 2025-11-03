@@ -194,11 +194,11 @@ async def update_workout(interaction: discord.Interaction):
 @bot.tree.command(name="view_logged_workout", description="View the exercises in a previously logged workout", guild=guild)
 @app_commands.describe(workout_index="Index of the logged workout to view")
 async def view_logged_workout(interaction: discord.Interaction, workout_index: int):
-    msg = EXERCISE_TRACKER.get_logged_workout(workout_index)
-    if type(msg) == str:
-        await interaction.response.send_message(msg, ephemeral=True)
+    output = EXERCISE_TRACKER.get_logged_workout(workout_index)
+    if output.get('table') is None:
+        await interaction.response.send_message(output['msg'], ephemeral=True)
     else:
-        await interaction.response.send_message(f'Showing workout "{workout_index}"', file=msg, ephemeral=True)
+        await interaction.response.send_message(output['msg'], file=output['table'], ephemeral=True)
 
 ### (start_workout)
 @bot.tree.command(name="start_workout", description="Start logging a new workout", guild=guild)
@@ -241,19 +241,19 @@ async def get_sets(interaction: discord.Interaction, sets: str):
 @bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE", guild=guild)
 async def end_workout(interaction: discord.Interaction):
     await interaction.response.defer()
-    msg = EXERCISE_TRACKER.end_workout()
-    await interaction.followup.send(msg, ephemeral=True)
-    if ENABLE_CHECKPOINTS and msg.startswith('Finished logging new workout'):
+    output = EXERCISE_TRACKER.end_workout()
+    if ENABLE_CHECKPOINTS and output['msg'].startswith('Finished logging new workout'):
+        await interaction.followup.send(output['msg'], file=output['table'], ephemeral=True)
         user_id = interaction.user.id
         user = await bot.fetch_user(user_id)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         zip_stream = EXERCISE_TRACKER._get_backup()
         hist_file = File(fp=zip_stream, filename=f'exercise_history_{timestamp}.zip')
         await user.send(f'Backup timestamp: {timestamp}', file=hist_file)
+    elif not output['msg'].startswith('Finished logging new workout'):
+        await interaction.followup.send(output['msg'], ephemeral=True)
     else:
-        await interaction.followup.send(msg, ephemeral=True)
-    
-
+        await interaction.followup.send(output['msg'], file=output['table'], ephemeral=True)
 
 ### (abort_workout)
 @bot.tree.command(name="abort_workout", description="Stop logging the current workout without saving", guild=guild)
