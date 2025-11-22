@@ -17,7 +17,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
-
+import json
 class NewExerciseModal(discord.ui.Modal):
     def __init__(self):
         super().__init__(title="New Exercise")
@@ -57,7 +57,8 @@ class NewExerciseModal(discord.ui.Modal):
                 msg = msg['msg'] if msg['msg'].startswith('Added new') else f'''{msg['msg']}\nexercise_name: "{new_exercise['exercise_name']}"\narea: "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets: "{new_exercise['sets']}"'''
                 await interaction.followup.send(msg, ephemeral=True)
         else:
-            await interaction.followup.send(f'''❌ Invalid input. Please check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
+            err_dict = json.dumps({set_: valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets']}, indent=4)
+            await interaction.followup.send(f'''❌ Invalid input.\n{err_dict}\nPlease check your values and try again. {user_response_valid}\nexercise_name ({(not EXERCISE_TRACKER.exercise_exists(new_exercise['exercise_name']))}): "{new_exercise['exercise_name']}"\narea ({EXERCISE_TRACKER.area_exists(new_exercise['area'])}): "{new_exercise['area']}"\nunits: "{new_exercise['units']}"\nsets ({all(valid_data_format(new_exercise['units'], set_) for set_ in new_exercise['sets'])}): "{new_exercise['sets']}"''',ephemeral=True)
 
 class RenameExerciseModal(discord.ui.Modal):
     def __init__(self):

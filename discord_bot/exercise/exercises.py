@@ -95,7 +95,7 @@ def find_set_match(units: str, sets_string: str) -> bool:
                         # If there was only a partial match for the pattern, then the entry isn't valid. REVIEW THE LOGS
                         print(f'WARNING: Partial match for "{set}" with pattern "{pattern}": "{pattern_match.group(0)}" != "{set}"')
                         return False
-                    default_units_check = bool(units_list[i].strip() == '' if (default_match is not None and default_match.group(0) == set) else True)
+                    default_units_check = True#bool(units_list[i].strip() == '' if (default_match is not None and default_match.group(0) == set) else True)
                     if target_patterns.get(set_combination,pattern) == pattern and default_units_check:
                         target_patterns[set_combination] = pattern
                     elif target_patterns.get(set_combination) != pattern:
