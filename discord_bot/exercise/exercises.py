@@ -17,7 +17,9 @@ if ENABLE_CHECKPOINTS:
     EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
 else:
     EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history_sandbox.csv'
-EXERCISE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + EXERCISE_RELATIVE_PATH
+ROOT_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/')
+EXERCISE_HISTORY_PATH = ROOT_PATH + EXERCISE_RELATIVE_PATH
+SCHEDULE_PATH = ROOT_PATH + 'data/exercise_logs/schedule/schedule.jpg'
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 isnumeric = lambda x: bool(re.match(r'^\d+(\.\d+){0,1}$', str(x)))
 
@@ -878,7 +880,14 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             return f'ERROR: Incomplete timestamp data for workout "{workout_index}"'
         duration = workout_end_ts - workout_start_ts
         return get_duration_string(duration)
-    
+    def get_current_schedule(self):
+        try:
+            if not os.path.exists(SCHEDULE_PATH):
+                return f'ERROR: Schedule file not found at {SCHEDULE_PATH}'
+            table = File(fp=open(SCHEDULE_PATH, 'rb'), filename='schedule.jpg')
+            return table
+        except Exception as e:
+            return f'ERROR: Could not load schedule: {str(e)}'
 
 
 

@@ -205,7 +205,11 @@ async def view_logged_workout(interaction: discord.Interaction, workout_index: i
 @bot.tree.command(name="start_workout", description="Start logging a new workout", guild=guild)
 async def start_workout(interaction: discord.Interaction):
     msg = EXERCISE_TRACKER.start_workout()
-    await interaction.response.send_message(msg, ephemeral=True)
+    schedule = EXERCISE_TRACKER.get_current_schedule()
+    if type(schedule) == str:
+        await interaction.response.send_message(f'{msg}\n\n{schedule}', ephemeral=True)
+    else:
+        await interaction.response.send_message(msg, file=schedule, ephemeral=True)
 
 ### (get_exercise) Add a new entry for an existing exercise
 @bot.tree.command(name="exercise", description="Pick an exercise from a list", guild=guild)
@@ -334,3 +338,12 @@ async def change_sets(interaction: discord.Interaction, name: str):
 async def show_selected(interaction: discord.Interaction):
     msg = EXERCISE_TRACKER.show_selected()
     await interaction.response.send_message(msg, ephemeral=True)
+
+### (display schedule)
+@bot.tree.command(name='schedule', description='Display the current workout schedule',guild=guild)
+async def schedule(interaction: discord.Interaction):
+    msg = EXERCISE_TRACKER.get_current_schedule()
+    if type(msg) == str:
+        await interaction.response.send_message(msg, ephemeral=True)
+    else:
+        await interaction.response.send_message('Workout planner', file=msg, ephemeral=True)
