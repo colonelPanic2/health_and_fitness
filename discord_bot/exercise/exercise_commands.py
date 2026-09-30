@@ -18,15 +18,15 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
 
-async def send_image_response(interaction: discord.Interaction, content: str, image: discord.File):
-    """Display a freshly uploaded image in a deferred, private response."""
+async def send_image_response(interaction: discord.Interaction, content: str, image: discord.File, *, ephemeral: bool = True):
+    """Display an uploaded image; first followups inherit defer visibility."""
     # Embed attachment names must use ASCII letters, numbers, underscores,
     # dashes, or dots; exercise names can also contain other characters.
     image.filename = re.sub(r'[^A-Za-z0-9_.-]', '-', image.filename)
     embed = discord.Embed()
     embed.set_image(url=f'attachment://{image.filename}')
     try:
-        await interaction.followup.send(content, file=image, embed=embed, ephemeral=True)
+        await interaction.followup.send(content, file=image, embed=embed, ephemeral=ephemeral)
     finally:
         image.close()
         image.fp.close()  # discord.File leaves caller-owned streams open.
@@ -264,8 +264,12 @@ async def get_sets(interaction: discord.Interaction, sets: str):
 async def end_workout(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     output = EXERCISE_TRACKER.end_workout()
+    if output['msg'].startswith('Finished logging new workout'):
+        # The first followup inherits the private defer. Complete it before
+        # posting the workout image publicly, while keeping errors private.
+        await interaction.followup.send('Workout saved.', ephemeral=True)
     if ENABLE_CHECKPOINTS and output['msg'].startswith('Finished logging new workout'):
-        await send_image_response(interaction, output['msg'], output['table'])
+        await send_image_response(interaction, output['msg'], output['table'], ephemeral=False)
         user_id = interaction.user.id
         user = await bot.fetch_user(user_id)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -275,7 +279,7 @@ async def end_workout(interaction: discord.Interaction):
     elif not output['msg'].startswith('Finished logging new workout'):
         await interaction.followup.send(output['msg'], ephemeral=True)
     else:
-        await send_image_response(interaction, output['msg'], output['table'])
+        await send_image_response(interaction, output['msg'], output['table'], ephemeral=False)
 
 ### (abort_workout)
 @bot.tree.command(name="abort_workout", description="Stop logging the current workout without saving", guild=guild)
