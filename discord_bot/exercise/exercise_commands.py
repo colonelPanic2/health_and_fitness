@@ -17,6 +17,20 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 EXERCISE_TRACKER = ExerciseTracker(EXERCISE_HISTORY_PATH)
+
+async def send_image_response(interaction: discord.Interaction, content: str, image: discord.File):
+    """Display a freshly uploaded image in a deferred, private response."""
+    # Embed attachment names must use ASCII letters, numbers, underscores,
+    # dashes, or dots; exercise names can also contain other characters.
+    image.filename = re.sub(r'[^A-Za-z0-9_.-]', '-', image.filename)
+    embed = discord.Embed()
+    embed.set_image(url=f'attachment://{image.filename}')
+    try:
+        await interaction.followup.send(content, file=image, embed=embed, ephemeral=True)
+    finally:
+        image.close()
+        image.fp.close()  # discord.File leaves caller-owned streams open.
+
 import json
 class NewExerciseModal(discord.ui.Modal):
     def __init__(self):
@@ -195,38 +209,41 @@ async def update_workout(interaction: discord.Interaction):
 @bot.tree.command(name="view_logged_workout", description="View the exercises in a previously logged workout", guild=guild)
 @app_commands.describe(workout_index="Index of the logged workout to view")
 async def view_logged_workout(interaction: discord.Interaction, workout_index: int):
+    await interaction.response.defer(ephemeral=True)
     output = EXERCISE_TRACKER.get_logged_workout(workout_index)
     if output.get('table') is None:
-        await interaction.response.send_message(output['msg'], ephemeral=True)
+        await interaction.followup.send(output['msg'], ephemeral=True)
     else:
-        await interaction.response.send_message(output['msg'], file=output['table'], ephemeral=True)
+        await send_image_response(interaction, output['msg'], output['table'])
 
 ### (start_workout)
 @bot.tree.command(name="start_workout", description="Start logging a new workout", guild=guild)
 async def start_workout(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     msg = EXERCISE_TRACKER.start_workout()
     schedule = EXERCISE_TRACKER.get_current_schedule()
     if type(schedule) == str:
-        await interaction.response.send_message(f'{msg}\n\n{schedule}', ephemeral=True)
+        await interaction.followup.send(f'{msg}\n\n{schedule}', ephemeral=True)
     else:
-        await interaction.response.send_message(msg, file=schedule, ephemeral=True)
+        await send_image_response(interaction, msg, schedule)
 
 ### (get_exercise) Add a new entry for an existing exercise
 @bot.tree.command(name="exercise", description="Pick an exercise from a list", guild=guild)
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise(interaction: discord.Interaction, name: str):
+    await interaction.response.defer(ephemeral=True)
     name = str("" if name is None else name)
     msg = EXERCISE_TRACKER.get_exercise(name)
     if msg.startswith(f'ERROR:'):
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
     else:
         msg2 = EXERCISE_TRACKER.get_latest_instance_data(name)
         if type(msg2) == str:
-            await interaction.response.send_message(msg2, ephemeral=True)
+            await interaction.followup.send(msg2, ephemeral=True)
         else:
             name = process_exercise_name(name)
-            await interaction.response.send_message(msg, file=msg2, ephemeral=True)
+            await send_image_response(interaction, msg, msg2)
 ### (get_sets)
 @bot.tree.command(name="sets", description="Add a comma-separated list of the sets for the current exercise", guild=guild)
 async def get_sets(interaction: discord.Interaction, sets: str):
@@ -245,10 +262,10 @@ async def get_sets(interaction: discord.Interaction, sets: str):
 ### (end_workout)
 @bot.tree.command(name="end_workout", description="Save the current workout. THIS RESETS ALL INPUT DATA FOR THE CURRENT EXERCISE", guild=guild)
 async def end_workout(interaction: discord.Interaction):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     output = EXERCISE_TRACKER.end_workout()
     if ENABLE_CHECKPOINTS and output['msg'].startswith('Finished logging new workout'):
-        await interaction.followup.send(output['msg'], file=output['table'], ephemeral=True)
+        await send_image_response(interaction, output['msg'], output['table'])
         user_id = interaction.user.id
         user = await bot.fetch_user(user_id)
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -258,7 +275,7 @@ async def end_workout(interaction: discord.Interaction):
     elif not output['msg'].startswith('Finished logging new workout'):
         await interaction.followup.send(output['msg'], ephemeral=True)
     else:
-        await interaction.followup.send(output['msg'], file=output['table'], ephemeral=True)
+        await send_image_response(interaction, output['msg'], output['table'])
 
 ### (abort_workout)
 @bot.tree.command(name="abort_workout", description="Stop logging the current workout without saving", guild=guild)
@@ -281,11 +298,12 @@ async def show_workout(interaction: discord.Interaction):
 ### (get_last_workout_date)
 @bot.tree.command(name="last_workout_date", description="Get the timestamp of the most recent workout", guild=guild)
 async def last_workout_date(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     msg = EXERCISE_TRACKER.get_last_workout_date()
     if type(msg) == str:
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
     else:
-        await interaction.response.send_message('Last workout date:', file=msg, ephemeral=True)
+        await send_image_response(interaction, 'Last workout date:', msg)
     # await interaction.response.send_message(msg,ephemeral=True)
 
 ### (get_latest_instance_data)
@@ -293,12 +311,13 @@ async def last_workout_date(interaction: discord.Interaction):
 @app_commands.describe(name="Name of the exercise")
 @app_commands.autocomplete(name=exercise_autocomplete)
 async def exercise_hist(interaction: discord.Interaction, name: str):
+    await interaction.response.defer(ephemeral=True)
     msg = EXERCISE_TRACKER.get_latest_instance_data(name)
     if type(msg) == str:
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
     else:
         name = process_exercise_name(name)
-        await interaction.response.send_message(name, file=msg, ephemeral=True)
+        await send_image_response(interaction, name, msg)
 
 ### (_reset_state)
 @bot.tree.command(name="restore", description="Restore the bot to its default state",guild=guild)
@@ -342,8 +361,9 @@ async def show_selected(interaction: discord.Interaction):
 ### (display schedule)
 @bot.tree.command(name='schedule', description='Display the current workout schedule',guild=guild)
 async def schedule(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     msg = EXERCISE_TRACKER.get_current_schedule()
     if type(msg) == str:
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
     else:
-        await interaction.response.send_message('Workout planner', file=msg, ephemeral=True)
+        await send_image_response(interaction, 'Workout planner', msg)

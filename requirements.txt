@@ -1,3 +1,6 @@
 discord.py
 pandas
 numpy
+matplotlib
+Pillow>=9.1.0
+tabulate

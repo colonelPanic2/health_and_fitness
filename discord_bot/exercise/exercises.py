@@ -4,6 +4,7 @@ import sys, os
 import re
 from tabulate import tabulate
 import matplotlib.pyplot as plt
+from PIL import Image
 import io
 from discord import File
 import zipfile
@@ -118,18 +119,35 @@ def get_duration_string(duration):
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
     return f"{sign}{hours:02d}:{minutes:02d}:{seconds:02d}"
-def render_table_image(df: pd.DataFrame) -> io.BytesIO:
-    fig, ax = plt.subplots(figsize=(len(df.columns) * 2, len(df) * 0.5 + 1))
-    ax.axis('off')
-    table = ax.table(cellText=df.values, colLabels=df.columns, cellLoc='center', loc='center')
-    table.scale(1, 1.5)
-    plt.tight_layout()
+TABLE_IMAGE_MAX_SIZE = 2048
+TABLE_IMAGE_DPI = 150
 
-    buffer = io.BytesIO()
-    plt.savefig(buffer, format='png', bbox_inches='tight', dpi=400) # Adjusting the dpi can fix the resolution issue
-    buffer.seek(0)
-    plt.close(fig)  # Close the figure to prevent memory leaks
-    return buffer
+def render_table_image(df: pd.DataFrame) -> io.BytesIO:
+    # Bound the raster before rendering: a 400-DPI table can contain tens of
+    # millions of pixels even when the compressed PNG is quite small.
+    figsize = (len(df.columns) * 2, len(df) * 0.5 + 1)
+    dpi = min(TABLE_IMAGE_DPI, TABLE_IMAGE_MAX_SIZE / max(figsize))
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    try:
+        ax.axis('off')
+        table = ax.table(cellText=df.values, colLabels=df.columns, cellLoc='center', loc='center')
+        table.scale(1, 1.5)
+        fig.tight_layout()
+        with io.BytesIO() as rendered:
+            fig.savefig(rendered, format='png', bbox_inches='tight', dpi=dpi,
+                        facecolor='white', transparent=False)
+            rendered.seek(0)
+            with Image.open(rendered) as image:
+                # Enforce the final dimensions after tight-layout padding and
+                # send an opaque RGB PNG that is inexpensive to decode on mobile.
+                with image.convert('RGB') as rgb:
+                    rgb.thumbnail((TABLE_IMAGE_MAX_SIZE, TABLE_IMAGE_MAX_SIZE), Image.Resampling.LANCZOS)
+                    buffer = io.BytesIO()
+                    rgb.save(buffer, format='PNG')
+        buffer.seek(0)
+        return buffer
+    finally:
+        plt.close(fig)
 def print_list(inp_list,title=''):
     if title != '':
         title = title+': \n'
