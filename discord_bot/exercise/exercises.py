@@ -469,7 +469,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         return f'''({select_mode}) Selected "{exercise_name}"'''
     def show_selected(self):
         if self.selected_exercise is None:
-            return f'No exercises have been selected yet. Run "/select_exercise_*" to select an exercise for a specific purpose'
+            return f'No exercises have been selected yet. Run "/select_exercise_*" to select an exercise'
         return f'MODE: "{self.selected_exercise["mode"]}\nNAME: "{self.selected_exercise["name"]}"\nAREA: "{self.selected_exercise["area"]}"'
     def rename_exercise(self, exercise):
         if self.selected_exercise is None or self.selected_exercise.get('mode','') != "RENAME":
@@ -691,41 +691,33 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
             for ts in timestamps:
                 if ts in data:
                     workout[index][ts] = str(data[ts])
-        # return f'WORKOUT_{self.new_workout} = {json.dumps(self.workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
         return f'WORKOUT_{self.new_workout} = {json.dumps(workout,indent=4)};\nCURRENT_EXERCISE = "{self.current_exercise}"'
     def get_last_workout_date(self):
         last_workout_index = self.get_latest_workout()
         df = self.data.query('workout == @last_workout_index')[['workout','dw_mod_ts']].head(1)
         if df.empty:
             return "No data found for the latest workout."
-        # Convert DataFrame to string with tabulate for better formatting
-        # try:
-        #     table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
-        # except ImportError:
-        #     table = df.to_string(index=False)
-        # return f"```\n{table}\n```"
         table = File(fp=render_table_image(df), filename=f'last_workout_date_{last_workout_index}.png')
         return table
-    def get_latest_instance_data(self, exercise):
+    def get_latest_instance_data(self, exercise, n=3, destination='discord'):
         exercise = process_exercise_name(exercise)
         if not self.exercise_exists(exercise):
             return f"""ERROR: Exercise "{exercise}" doesn't exist"""
         latest_instance_index = int(float(self.get_latest_instance(exercise)))
-        n = 3
+        # n = 3
         top_n_range = list(range(max(0,latest_instance_index-(n-1)),latest_instance_index+1))
         # Format the DataFrame as a code block for Discord
-        df = self.data_partition.get(exercise,pd.DataFrame(instance_data_cols)).query('instance in @top_n_range')[instance_data_cols]
-        if df.empty:
-            return "No data found for this exercise."
-        # Convert DataFrame to string with tabulate for better formatting
-        # try:
-        #     # table = tabulate(df, headers='keys', tablefmt='github', showindex=False)
-        #     table = File(fp=render_table_image(df), filename=f'{exercise}.png')
-        #     return table
-        # except ImportError:
-        #     table = df.to_string(index=False)
-        #     return f"```\n{table}\n```"
-        table = File(fp=render_table_image(df), filename=f'{exercise}.png')
+        # df = self.data_partition.get(exercise,pd.DataFrame(instance_data_cols)).query('instance in @top_n_range')[instance_data_cols]
+        if destination == 'discord':
+            df = self.data_partition.get(exercise,pd.DataFrame(instance_data_cols)).query('instance in @top_n_range')[instance_data_cols]
+            if df.empty:
+                return "No data found for this exercise."
+            table = File(fp=render_table_image(df), filename=f'{exercise}.png')
+        else:
+            df = self.data_partition.get(exercise,pd.DataFrame(SELECT_COLS)).query('instance in @top_n_range')[SELECT_COLS]
+            if df.empty:
+                return "No data found for this exercise."
+            table = df
         return table
     ### NOTE: ANY PROPERTIES DEFINED IN ANY FUNCTIONS OF ExerciseTracker MUST BE RESET IN THE _reset_state FUNCTION ###
     def _reset_state(self):
