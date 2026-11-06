@@ -19,5 +19,5 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Run the bot
-CMD ["python", "discord_bot/exercise/exercise_tracker_bot.py"]
+CMD ["python", "discord_bot/exercise/bot.py"]
 

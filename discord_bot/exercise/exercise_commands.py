@@ -221,6 +221,9 @@ async def view_logged_workout(interaction: discord.Interaction, workout_index: i
 async def start_workout(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     msg = EXERCISE_TRACKER.start_workout()
+    if not msg.startswith('Started logging new workout:'):
+        await interaction.followup.send(msg, ephemeral=True)
+        return
     schedule = EXERCISE_TRACKER.get_current_schedule()
     if type(schedule) == str:
         await interaction.followup.send(f'{msg}\n\n{schedule}', ephemeral=True)

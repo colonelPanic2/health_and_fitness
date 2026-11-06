@@ -9,18 +9,17 @@ import io
 from discord import File
 import zipfile
 from itertools import product
+from pathlib import Path
+from data_paths import PROJECT_ROOT, EXERCISE_LOG_DIR, SCHEDULE_DIR, find_schedule_image
 
 #### NOTE: Set to True to allow the bot to send checkpoint/backup files to the user after certain operations
 ####       Set to False when debugging/testing to avoid spamming DMs with backup files
 ENABLE_CHECKPOINTS= True
 
-if ENABLE_CHECKPOINTS:
-    EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history.csv'
-else:
-    EXERCISE_RELATIVE_PATH = 'data/exercise_logs/exercise_history_sandbox.csv'
-ROOT_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/')
-EXERCISE_HISTORY_PATH = ROOT_PATH + EXERCISE_RELATIVE_PATH
-SCHEDULE_PATH = ROOT_PATH + 'data/exercise_logs/schedule/schedule.jpg'
+ROOT_PATH = PROJECT_ROOT.as_posix() + '/'
+_history_filename = 'exercise_history.csv' if ENABLE_CHECKPOINTS else 'exercise_history_sandbox.csv'
+EXERCISE_HISTORY_PATH = str(EXERCISE_LOG_DIR / _history_filename)
+SCHEDULE_PATH = str(SCHEDULE_DIR / 'schedule.jpg')
 PRIMARY_KEYS = ['exercise','area','instance','workout','position','set']
 isnumeric = lambda x: bool(re.match(r'^\d+(\.\d+){0,1}$', str(x)))
 
@@ -216,14 +215,17 @@ def process_exercise_name(exercise_name):
 
 class EXERCISE_HISTORY_CLS():
     def __init__(self,PATH):
-        self.path = PATH
+        self.path = str(Path(PATH).expanduser().resolve())
         self.primary_keys = PRIMARY_KEYS
         self.refresh_data()
     def partition_data(self):
         self.data_partition = {exercise: self.data.query('exercise == @exercise') for exercise in self.exercises}
     def refresh_data(self):
         if not os.path.exists(self.path):
-            self.data = pd.DataFrame(['exercise','area','instance','workout','position','set','data','units','dw_mod_ts'])
+            raise FileNotFoundError(
+                f'Exercise history was not found at "{self.path}". Restore the history CSV '
+                'or set EXERCISE_BOT_DATA_DIR to the folder containing exercise_logs.'
+            )
         else:
             self.data = pd.read_csv(self.path,keep_default_na=False)
         if 'instance' in self.data.columns:
@@ -231,7 +233,8 @@ class EXERCISE_HISTORY_CLS():
         self.exercises = sorted(list(set(self.data['exercise'].tolist())))
         self.partition_data()
         self.areas = list(set(self.data['area'].tolist()))
-        self.units = list(set(self.data[self.data['units'].apply(lambda x: pd.notna(x) and str(x).strip()!='')]['units'].tolist()))
+        units_present = self.data['units'].apply(lambda x: pd.notna(x) and str(x).strip()!='').astype(bool)
+        self.units = list(set(self.data.loc[units_present, 'units'].tolist()))
         self.workouts = list(set(self.data['workout'].tolist()))
         self.get_latest_workout()
         self.new_exercises = {}
@@ -261,7 +264,7 @@ class EXERCISE_HISTORY_CLS():
         instance = self.data_partition.get(exercise,pd.DataFrame(columns=['instance']))['instance'].max()
         return instance
     def get_latest_workout(self):
-        self.latest_workout = max(self.workouts)
+        self.latest_workout = max(self.workouts, default=-1)
         return self.latest_workout
     ### NOTE: Functions for helping the user set up input data for the dataset
     def get_user_input(self, condition_function, show_similar=None, prompt=None):
@@ -466,7 +469,8 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         return status
     def start_workout(self):
         if self.new_workout is not None and self.workout is not None:
-            return f'Finish logging the current workout, "{self.new_workout}", before starting a new workout'
+            return (f'Finish logging the current workout, "{self.new_workout}", before starting a new workout. '
+                    'Use /end_workout to save it or /abort_workout to discard it.')
         elif self.new_workout is not None or self.workout is not None:
             return f'ERROR: The bot is in an unexpected state\nworkout_index = {self.new_workout}\nworkout = {self.workout}'
         # Variables for logging workouts
@@ -764,7 +768,7 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         csv_buffer.seek(0)
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.writestr(self.path.split('/')[-1].replace('.csv','_bckp.csv'), csv_buffer.read())
+            zip_file.writestr(Path(self.path).stem + '_bckp.csv', csv_buffer.read())
         zip_buffer.seek(0)
         return zip_buffer
     def change_sets(self, index_and_exercise):
@@ -892,12 +896,12 @@ class ExerciseTracker(EXERCISE_HISTORY_CLS):
         return get_duration_string(duration)
     def get_current_schedule(self):
         try:
-            if not os.path.exists(SCHEDULE_PATH):
-                return f'ERROR: Schedule file not found at {SCHEDULE_PATH}'
-            table = File(fp=open(SCHEDULE_PATH, 'rb'), filename='schedule.jpg')
-            return table
-        except Exception as e:
-            return f'ERROR: Could not load schedule: {str(e)}'
+            image_path = find_schedule_image(SCHEDULE_PATH)
+            if image_path is None:
+                return 'No workout schedule image has been added yet. You can still log exercises.'
+            return File(str(image_path), filename=image_path.name)
+        except OSError:
+            return 'The workout schedule image could not be opened. You can still log exercises.'
 
 
 

@@ -1,9 +1,10 @@
 import sys, os
 import re
 import pandas as pd
+from pathlib import Path
+from data_paths import SCHEDULE_DIR
 
-SCHEDULE_RELATIVE_PATH = 'data/exercise_logs/schedule'#/schedule_history.csv'
-SCHEDULE_HISTORY_PATH = str('C:/Files/Fitness/' if sys.platform.startswith('win') else '/home/luis/Documents/Fitness/') + SCHEDULE_RELATIVE_PATH
+SCHEDULE_HISTORY_PATH = str(SCHEDULE_DIR)
 SCHEDULE_HISTORY_PRIMARY_KEYS = ['schedule', 'exercise', 'position', 'area', 'units', 'description']
 EXERCISES_PRIMARY_KEYS = ['exercise','area','units','requirement','description']
 def print_list(inp_list,title=''):
@@ -15,8 +16,9 @@ def process_exercise_name( exercise_name):
 
 class SCHEDULE_HISTORY_CLS():
     def __init__(self,PATH):
-        self.schedule_history_path = f'{PATH}/schedule_history.csv'
-        self.exercises_path = f'{PATH}/exercises.csv'
+        directory = Path(PATH).expanduser().resolve()
+        self.schedule_history_path = str(directory / 'schedule_history.csv')
+        self.exercises_path = str(directory / 'exercises.csv')
         self.creating_schedule = False
         self.current_day = None
         self.current_exercise = None
@@ -32,11 +34,11 @@ class SCHEDULE_HISTORY_CLS():
         if not os.path.exists(self.exercises_path):
             self.exercise_data = pd.DataFrame(columns=EXERCISES_PRIMARY_KEYS+['dw_mod_ts'])
         else:
-            self.exercise_data = pd.read_csv(self.schedule_history_path, keep_default_na=False)
+            self.exercise_data = pd.read_csv(self.exercises_path, keep_default_na=False)
         # self.most_recent_week = self.data['week'].max() if not self.data.empty else None
         if not self.exercise_data.empty:
             self.exercises = self.exercise_data['exercise'].unique().tolist()
-            self.areas = self.exercise_data['areas'].unique().tolist()
+            self.areas = self.exercise_data['area'].unique().tolist()
             self.units = self.exercise_data['units'].unique().tolist()
         else:
             self.exercises, self.areas, self.units = [], [], []
